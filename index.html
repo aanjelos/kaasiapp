@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="application-version" content="v2.66g" />
+    <meta name="application-version" content="v2.65g" />
     <title>Kaasi - Expense Tracker | Manage Your Finances 🇱🇰</title>
     <meta
       name="title"
@@ -15,7 +15,7 @@
     />
 
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://aanjelos.github.io/kaasi/" />
+    <meta property="og:url" content="https://app.kaasi.com.lk/" />
     <meta
       property="og:title"
       content="Kaasi - Expense Tracker | Manage Your Finances 🇱🇰"
@@ -24,13 +24,10 @@
       property="og:description"
       content="Kaasi helps Sri Lankans manage money (LKR) effortlessly. Track daily transactions, monitor account balances, and get monthly reports. Your financial data is stored securely on your device."
     />
-    <meta
-      property="og:image"
-      content="https://aanjelos.github.io/kaasi/img/Metaimg.jpg"
-    />
+    <meta property="og:image" content="https://kaasi.com.lk/img/Metaimg.jpg" />
 
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://aanjelos.github.io/kaasi/" />
+    <meta property="twitter:url" content="https://app.kaasi.com.lk/" />
     <meta
       property="twitter:title"
       content="Kaasi - Expense Tracker | Manage Your Finances 🇱🇰"
@@ -41,7 +38,7 @@
     />
     <meta
       property="twitter:image"
-      content="https://aanjelos.github.io/kaasi/img/Metaimg.jpg"
+      content="https://kaasi.com.lk/img/Metaimg.jpg"
     />
     <link rel="icon" href="img/LogoIcon.svg" type="image/svg+xml" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -88,12 +85,18 @@
       <div class="container mx-auto max-w-7xl">
         <header class="flex justify-between items-center mb-6 md:mb-10">
           <div id="header-logo-container">
-            <img
-              src="img/FullLogo.svg"
-              alt="Kaasi Logo"
-              class="h-10 md:h-12"
-              onerror="this.onerror=null; this.src='https://placehold.co/200x50/e67e26/white?text=Kaasi+Logo&font=satoshi';"
-            />
+            <a
+              href="https://kaasi.com.lk"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                src="img/FullLogo.svg"
+                alt="Kaasi Logo"
+                class="h-10 md:h-12 cursor-pointer"
+                onerror="this.onerror=null; this.src='https://placehold.co/200x50/e67e26/white?text=Kaasi+Logo&font=satoshi';"
+              />
+            </a>
           </div>
           <div class="flex items-center">
             <button
@@ -425,7 +428,6 @@
                 </div>
               </div>
             </div>
-            <!-- UPDATED CHART CARD -->
             <div class="card">
               <div class="flex justify-between items-center mb-4">
                 <h2 id="dashboardChartTitle" class="text-xl font-semibold">
@@ -467,16 +469,16 @@
               class="flex flex-wrap justify-center gap-x-1"
             ></div>
           </div>
-          <div class="my-4 flex items-center gap-x-2"> 
-            <input 
-              type="search" 
-              id="monthlySearchInput" 
-              name="monthlySearch" 
+          <div class="my-4 flex items-center gap-x-2">
+            <input
+              type="search"
+              id="monthlySearchInput"
+              name="monthlySearch"
               placeholder="Search in this month's transactions..."
               class="flex-grow"
             />
-            <button 
-              id="clearMonthlySearchBtn" 
+            <button
+              id="clearMonthlySearchBtn"
               class="btn-icon-clear-search hidden flex-shrink-0"
               aria-label="Clear search"
               data-tooltip="Clear Search"
@@ -491,7 +493,7 @@
           </div>
         </div>
       </div>
-      
+
       <div id="settingsModal" class="modal">
         <div class="modal-content max-w-xl">
           <span class="modal-close" onclick="closeModal('settingsModal')"
@@ -705,8 +707,9 @@
             </p>
             <div class="max-w-lg mx-auto">
               <p>
-                This was made and refined using AI. All data are handled locally. This
-                cannot be automatically synced to a different device.
+                This was made and refined using AI. All data are handled
+                locally. This cannot be automatically synced to a different
+                device.
               </p>
               <p>
                 Make sure to back up the data from time to time. You will get an
@@ -726,11 +729,12 @@
               <p id="appVersionSettings" class="text-gray-500 text-xs"></p>
               <div class="max-w-2xl mx-auto">
                 <p class="font-semibold text-gray-300 mt-2">
-                  For optimal performance and to prevent data loss due to browser
-                  storage limits, we recommend backing up your data regularly.
-                  Consider starting fresh after 1-2 years of use. If you notice an
-                  update to the app, exporting and re-importing your data can help
-                  ensure all features function correctly with the new version.
+                  For optimal performance and to prevent data loss due to
+                  browser storage limits, we recommend backing up your data
+                  regularly. Consider starting fresh after 1-2 years of use. If
+                  you notice an update to the app, exporting and re-importing
+                  your data can help ensure all features function correctly with
+                  the new version.
                 </p>
               </div>
               <p id="storageSizeInfo" class="text-gray-500 text-xs mt-1">
@@ -874,34 +878,36 @@
               on Instagram.
             </p>
             <div class="max-w-lg mx-auto">
-                <p>
-                    This was made and refined using AI. All data are handled locally. This
-                    cannot be automatically synced to a different device.
-                </p>
-                <p>
-                    Make sure to back up the data from time to time. You will get an
-                    automatic reminder every Wednesday and Sunday.
-                </p>
+              <p>
+                This was made and refined using AI. All data are handled
+                locally. This cannot be automatically synced to a different
+                device.
+              </p>
+              <p>
+                Make sure to back up the data from time to time. You will get an
+                automatic reminder every Wednesday and Sunday.
+              </p>
             </div>
             <p class="font-semibold mt-2">Earn Well And Spend Responsibly!</p>
             <div class="mt-4 flex justify-center flex-col items-center">
-                <img
+              <img
                 src="img/AanjeloNoText.svg"
                 alt="Aanjelo Salgado Logo"
                 class="h-8 mb-2"
                 onerror="this.onerror=null; this.src='https://placehold.co/80x32/e67e26/white?text=AS&font=satoshi';"
-                />
-                <hr class="w-1/4 my-2 border-gray-600" />
-                <p id="appVersionSetup" class="text-gray-500 text-xs"></p>
-                <div class="max-w-2xl mx-auto">
-                    <p class="font-semibold text-gray-300 mt-2">
-                        For optimal performance and to prevent data loss due to browser
-                        storage limits, we recommend backing up your data regularly.
-                        Consider starting fresh after 1-2 years of use. If you notice an
-                        update to the app, exporting and re-importing your data can help
-                        ensure all features function correctly with the new version.
-                    </p>
-                </div>
+              />
+              <hr class="w-1/4 my-2 border-gray-600" />
+              <p id="appVersionSetup" class="text-gray-500 text-xs"></p>
+              <div class="max-w-2xl mx-auto">
+                <p class="font-semibold text-gray-300 mt-2">
+                  For optimal performance and to prevent data loss due to
+                  browser storage limits, we recommend backing up your data
+                  regularly. Consider starting fresh after 1-2 years of use. If
+                  you notice an update to the app, exporting and re-importing
+                  your data can help ensure all features function correctly with
+                  the new version.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1069,30 +1075,42 @@
         </div>
       </div>
 
-      <div id="shortcutsHelpModal" class="modal" style="z-index: 75;">
+      <div id="shortcutsHelpModal" class="modal" style="z-index: 75">
         <div class="modal-content max-w-lg">
           <span class="modal-close" onclick="closeModal('shortcutsHelpModal')"
             >&times;</span
           >
           <h2 class="text-2xl font-semibold mb-4 text-center">
-            <i class="fas fa-keyboard mr-2 text-accent-primary"></i>Keyboard Shortcuts
+            <i class="fas fa-keyboard mr-2 text-accent-primary"></i>Keyboard
+            Shortcuts
           </h2>
           <div class="mb-4 text-xs text-gray-400 text-center">
             Note: Shortcuts generally do not work when typing in input fields.
           </div>
-          <ul id="shortcutsList" class="space-y-1 text-sm max-h-[60vh] overflow-y-auto pr-2">
+          <ul
+            id="shortcutsList"
+            class="space-y-1 text-sm max-h-[60vh] overflow-y-auto pr-2"
+          >
             <li class="text-center text-gray-500">Loading shortcuts...</li>
           </ul>
         </div>
       </div>
 
-      <div id="confirmationModal" class="modal" style="z-index: 70;">
+      <div id="confirmationModal" class="modal" style="z-index: 70">
         <div class="modal-content max-w-sm text-center">
-          <h2 id="confirmationModalTitle" class="text-xl font-semibold mb-4">Confirmation</h2>
-          <p id="confirmationMessage" class="text-gray-300 mb-6">Are you sure?</p>
+          <h2 id="confirmationModalTitle" class="text-xl font-semibold mb-4">
+            Confirmation
+          </h2>
+          <p id="confirmationMessage" class="text-gray-300 mb-6">
+            Are you sure?
+          </p>
           <div class="flex justify-center gap-4">
-            <button id="confirmModalCancelBtn" class="btn btn-secondary">Cancel</button>
-            <button id="confirmModalConfirmBtn" class="btn btn-danger">Confirm</button>
+            <button id="confirmModalCancelBtn" class="btn btn-secondary">
+              Cancel
+            </button>
+            <button id="confirmModalConfirmBtn" class="btn btn-danger">
+              Confirm
+            </button>
           </div>
         </div>
       </div>
@@ -1103,34 +1121,33 @@
       ></div>
     </div>
 
-    <footer class="footer-bar">
-      <div class="footer-content">
-        <button class="footer-donate" id="donateBtn">
-          <span class="satoshi-bold">Donate</span>
-        </button>
-        <div class="footer-socials">
-          <a
-            href="https://www.linkedin.com/company/kaasi-lk"
-            target="_blank"
-            aria-label="LinkedIn"
-            ><i class="fab fa-linkedin"></i
-          ></a>
-          <a
-            href="https://www.instagram.com/kaasi.lk/"
-            target="_blank"
-            aria-label="Instagram"
-            ><i class="fab fa-instagram"></i
-          ></a>
-          <a
-            href="https://www.facebook.com/profile.php?id=61576800639923"
-            target="_blank"
-            aria-label="Facebook"
-            ><i class="fab fa-facebook"></i
-          ></a>
+    <!-- The main change is adding mt-16 to the footer and max-w-7xl to the inner div -->
+    <footer
+      class="mt-16 relative z-10 border-t border-gray-800/50 bg-[#121212]"
+    >
+      <div
+        class="container mx-auto max-w-7xl px-6 py-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-6"
+      >
+        <div class="flex items-center gap-3">
+          <img
+            src="img/LogoIcon.svg"
+            alt="Kaasi Logo Icon"
+            class="h-6"
+            onerror="this.onerror=null; this.src='https://placehold.co/24x24/1a1a1a/e67e26?text=K&font=satoshi';"
+          />
+          <span class="text-gray-500 text-sm"
+            >&copy; 2025 Kaasi by Aanjelo Salgado.</span
+          >
+        </div>
+        <div class="flex items-center gap-6 text-gray-400 text-sm">
+          <!-- Removed Tailwind hover and transition classes -->
+          <button id="footerDonateBtn">Donate</button>
+          <a href="https://kaasi.com.lk" target="_blank">Main Website</a>
         </div>
       </div>
     </footer>
 
+    <!-- NEW DONATE MODAL -->
     <div
       id="donateModal"
       class="modal"
@@ -1151,7 +1168,10 @@
           Thank You for Supporting Kaasi!
         </h2>
         <p class="mb-2 text-secondary" style="font-size: 1.08rem">
-          Your donation helps keep Kaasi free and in active development. Since the AI subscriptions used for development are quite expensive, and I want to keep Kaasi free for everyone, your kind support is greatly appreciated!
+          Your donation helps keep Kaasi free and in active development. Since
+          the AI subscriptions used for development are quite expensive, and I
+          want to keep Kaasi free for everyone, your kind support is greatly
+          appreciated!
         </p>
         <div class="donate-bank-details-vertical" style="margin-top: 1.6rem">
           <div class="donate-bank-block">
@@ -1159,6 +1179,13 @@
             <div class="bank-pair">
               <span class="bank-label">Number:</span>
               <span class="bank-value">0240 2065 9091</span>
+              <button
+                class="copy-button"
+                data-copy-text="024020659091"
+                aria-label="Copy HNB Account Number"
+              >
+                <i class="far fa-copy"></i>
+              </button>
             </div>
             <div class="bank-pair">
               <span class="bank-label">Name:</span>
@@ -1170,6 +1197,13 @@
             <div class="bank-pair">
               <span class="bank-label">Number:</span>
               <span class="bank-value">8009 650 486</span>
+              <button
+                class="copy-button"
+                data-copy-text="8009650486"
+                aria-label="Copy Commercial Account Number"
+              >
+                <i class="far fa-copy"></i>
+              </button>
             </div>
             <div class="bank-pair">
               <span class="bank-label">Name:</span>

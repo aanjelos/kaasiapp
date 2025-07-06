@@ -137,7 +137,6 @@ function getDefaultState() {
         "Entertainment",
         "Education",
         "Gifts & Donations",
-        "Travel",
         "Subscriptions & Memberships",
         "Bank Charges",
         "Other",
@@ -6055,7 +6054,7 @@ function switchSettingsTab(clickedButton, targetPanelId) {
 let monthlySearchDebounceTimer; // Timer for debouncing search input
 
 // Donate Modal logic
-document.getElementById("donateBtn").addEventListener("click", function () {
+document.getElementById("footerDonateBtn").addEventListener("click", function () {
   document.getElementById("donateModal").style.display = "block";
 });
 document
@@ -6095,7 +6094,7 @@ function initializeUI(isRefresh = false) {
   if (mainCcDateInput) mainCcDateInput.value = getCurrentDateString();
 
   populateDropdowns();
-  renderDashboard(); // This will call renderMonthlyOverviewChart with the default 'yearly' state
+  renderDashboard();
   updateCcDashboardSectionVisibility();
   setupMonthlyView();
 
@@ -6108,41 +6107,44 @@ function initializeUI(isRefresh = false) {
 
   $("#transactionForm").onsubmit = handleTransactionSubmit;
   $("#ccTransactionForm").onsubmit = handleCcTransactionSubmit;
-
-  // --- Header Button Event Listeners ---
+  
+  // --- Header & Footer Button Event Listeners ---
   $("#settingsBtn").onclick = openSettingsModal;
+  
+  $("#toggleChartBtn").onclick = () => {
+    dashboardChartState =
+      dashboardChartState === "yearly" ? "monthly" : "yearly";
+    renderMonthlyOverviewChart();
+  };
 
   $("#monthlyViewBtn").onclick = () => {
     const yearSelector = $("#yearSelector");
     const currentYear = new Date().getFullYear();
-    const selectedYear =
-      yearSelector && yearSelector.value
-        ? parseInt(yearSelector.value)
-        : currentYear;
-
+    const selectedYear = yearSelector && yearSelector.value ? parseInt(yearSelector.value) : currentYear;
+    
     renderMonthTabs(selectedYear);
-
+    
     const monthlySearchInput = $("#monthlySearchInput");
     const clearMonthlySearchBtn = $("#clearMonthlySearchBtn");
     if (monthlySearchInput) {
-      monthlySearchInput.value = "";
+        monthlySearchInput.value = ""; 
     }
     if (clearMonthlySearchBtn) {
-      clearMonthlySearchBtn.style.display = "none";
-      clearMonthlySearchBtn.disabled = true;
+        clearMonthlySearchBtn.style.display = 'none'; 
+        clearMonthlySearchBtn.disabled = true; 
     }
 
     $("#monthlyViewModal").style.display = "block";
-
+    
     const currentMonth = new Date().getMonth();
     const currentMonthTab = $(
       `#monthTabs .tab-button[data-month="${currentMonth}"][data-year="${selectedYear}"]`
     );
 
     if (currentMonthTab) {
-      currentMonthTab.click();
+      currentMonthTab.click(); 
     } else if ($$("#monthTabs .tab-button").length > 0) {
-      $$("#monthTabs .tab-button")[0].click();
+      $$("#monthTabs .tab-button")[0].click(); 
     } else {
       $("#monthlyDetailsContainer").innerHTML =
         '<p class="text-center text-gray-400">Select a month.</p>';
@@ -6153,39 +6155,76 @@ function initializeUI(isRefresh = false) {
   if (shortcutsHelpBtn) {
     shortcutsHelpBtn.onclick = openShortcutsHelpModal;
   }
+  
+  // NEW: Donate Modal Logic moved inside initializeUI for robustness
+  const donateModal = document.getElementById("donateModal");
+  const footerDonateBtn = document.getElementById("footerDonateBtn");
+  const closeDonateModalBtn = document.getElementById("closeDonateModal");
 
-  // --- Chart Toggle Button Listener ---
-  const toggleChartBtn = $("#toggleChartBtn");
-  if (toggleChartBtn) {
-    toggleChartBtn.onclick = () => {
-      // Toggle the state
-      dashboardChartState =
-        dashboardChartState === "yearly" ? "monthly" : "yearly";
-      // Re-render the chart with the new state
-      renderMonthlyOverviewChart();
-    };
+  if (donateModal && footerDonateBtn && closeDonateModalBtn) {
+    footerDonateBtn.addEventListener("click", () => {
+      donateModal.style.display = "block";
+    });
+    closeDonateModalBtn.addEventListener("click", () => {
+      donateModal.style.display = "none";
+    });
+    // Close modal if user clicks on the background overlay
+    donateModal.addEventListener("click", (e) => {
+      if (e.target === donateModal) {
+        donateModal.style.display = "none";
+      }
+    });
+
+    // Handle copy to clipboard functionality for the new modal
+    const copyButtons = donateModal.querySelectorAll(".copy-button");
+    copyButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const textToCopy = button.dataset.copyText;
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand("copy");
+          button.textContent = "Copied!";
+          setTimeout(() => {
+            button.innerHTML = '<i class="far fa-copy"></i>'; // Revert back to icon
+          }, 2000);
+        } catch (err) {
+          console.error("Failed to copy text: ", err);
+          button.textContent = "Failed!";
+           setTimeout(() => {
+            button.innerHTML = '<i class="far fa-copy"></i>';
+          }, 2000);
+        }
+        document.body.removeChild(textArea);
+      });
+    });
+  } else {
+      console.warn("One or more elements for the new donate modal were not found.");
   }
+
 
   const monthlySearchInput = $("#monthlySearchInput");
   const clearMonthlySearchBtn = $("#clearMonthlySearchBtn");
 
   if (monthlySearchInput && clearMonthlySearchBtn) {
     if (!monthlySearchInput.value.trim()) {
-      clearMonthlySearchBtn.style.display = "none";
-      clearMonthlySearchBtn.disabled = true;
+        clearMonthlySearchBtn.style.display = 'none';
+        clearMonthlySearchBtn.disabled = true;
     }
 
     monthlySearchInput.addEventListener("input", () => {
       const searchTerm = monthlySearchInput.value.trim().toLowerCase();
-
+      
       if (searchTerm) {
-        clearMonthlySearchBtn.style.display = "inline-flex";
-        clearMonthlySearchBtn.disabled = false;
+        clearMonthlySearchBtn.style.display = 'inline-flex'; 
+        clearMonthlySearchBtn.disabled = false; 
       } else {
-        clearMonthlySearchBtn.style.display = "none";
-        clearMonthlySearchBtn.disabled = true;
+        clearMonthlySearchBtn.style.display = 'none';    
+        clearMonthlySearchBtn.disabled = true;  
       }
-
+      
       clearTimeout(monthlySearchDebounceTimer);
 
       monthlySearchDebounceTimer = setTimeout(() => {
@@ -6195,24 +6234,25 @@ function initializeUI(isRefresh = false) {
           const year = parseInt(activeTab.dataset.year);
           renderMonthlyDetails(month, year, new Set(), searchTerm, true);
         }
-      }, 400);
+      }, 400); 
     });
 
     clearMonthlySearchBtn.addEventListener("click", () => {
-      clearTimeout(monthlySearchDebounceTimer);
+      clearTimeout(monthlySearchDebounceTimer); 
       monthlySearchInput.value = "";
-      clearMonthlySearchBtn.style.display = "none";
-      clearMonthlySearchBtn.disabled = true;
+      clearMonthlySearchBtn.style.display = 'none'; 
+      clearMonthlySearchBtn.disabled = true; 
       const activeTab = $("#monthTabs .tab-button.active");
       if (activeTab) {
         const month = parseInt(activeTab.dataset.month);
         const year = parseInt(activeTab.dataset.year);
-        renderMonthlyDetails(month, year, new Set(), "", true);
+        renderMonthlyDetails(month, year, new Set(), "", true); 
       }
-      monthlySearchInput.focus();
+      monthlySearchInput.focus(); 
     });
-  }
 
+  } 
+  
   const openTransferModalButton = $("#openTransferModalBtn");
   if (openTransferModalButton) {
     openTransferModalButton.onclick = () => {
@@ -6232,14 +6272,14 @@ function initializeUI(isRefresh = false) {
         if (firstInput) {
           firstInput.focus();
         }
-      }
+      } 
     };
-  }
+  } 
 
   const transferModalFormElement = $("#transferModalForm");
   if (transferModalFormElement) {
     transferModalFormElement.onsubmit = handleTransferSubmit;
-  }
+  } 
 
   $("#exportDataBtn").onclick = exportData;
   $("#importDataInput").onchange = importData;
@@ -6254,7 +6294,7 @@ function initializeUI(isRefresh = false) {
   const viewDebtsBtn = $("#viewDebtsBtn");
   if (viewDebtsBtn) {
     viewDebtsBtn.onclick = () => {
-      renderDebtList();
+      renderDebtList(); 
       $("#debtsViewModal").style.display = "block";
     };
   }
@@ -6262,14 +6302,14 @@ function initializeUI(isRefresh = false) {
   const viewReceivablesBtn = $("#viewReceivablesBtn");
   if (viewReceivablesBtn) {
     viewReceivablesBtn.onclick = () => {
-      renderReceivableList();
+      renderReceivableList(); 
       $("#receivablesViewModal").style.display = "block";
     };
   }
 
   const transactionTypeSelect = $("#transactionType");
   const categoryGroup = $("#categoryGroup");
-  const descriptionInput = $("#description");
+  const descriptionInput = $("#description"); 
 
   const toggleMainCategoryVisibility = () => {
     if (!transactionTypeSelect || !categoryGroup) return;
@@ -6288,15 +6328,16 @@ function initializeUI(isRefresh = false) {
 
   if (transactionTypeSelect) {
     transactionTypeSelect.onchange = toggleMainCategoryVisibility;
-    toggleMainCategoryVisibility();
+    toggleMainCategoryVisibility(); 
   }
-
+  
   if (!document.body.dataset.keyboardListenerAttached) {
-    document.addEventListener("keydown", handleKeyboardShortcuts);
-    document.body.dataset.keyboardListenerAttached = "true";
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+    document.body.dataset.keyboardListenerAttached = 'true'; 
     console.log("Keyboard shortcut listener attached.");
   }
 }
+
 
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM Loaded. Initializing...");
