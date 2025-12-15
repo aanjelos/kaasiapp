@@ -183,7 +183,6 @@ function getDefaultState() {
         initialSetupDone: false,
         showCcDashboardSection: true,
         theme: "dark",
-        shortcutTarget: "cloud", // NEW: Added this setting, defaulting to 'cloud'
       },
     })
   );
@@ -654,7 +653,6 @@ function loadData() {
     );
     state.settings = { ...defaultStateTemplate.settings };
   } else {
-    // This loop ensures all default setting keys exist in the loaded state
     for (const settingKey in defaultStateTemplate.settings) {
       if (state.settings[settingKey] === undefined) {
         state.settings[settingKey] = defaultStateTemplate.settings[settingKey];
@@ -1281,12 +1279,8 @@ function handleKeyboardShortcuts(event) {
   if (event.ctrlKey && (event.key === "e" || event.key === "E")) {
     if (!inInputField) {
       event.preventDefault();
-      // Read directly from the dropdown
-      const shortcutSelect = $("#shortcutTargetSelect");
       const target =
-        shortcutSelect &&
-        shortcutSelect.value === "cloud" &&
-        !shortcutSelect.querySelector("#shortcutTargetCloudOption").disabled
+        $("#shortcutCloud")?.checked && !$("#shortcutCloud")?.disabled
           ? "cloud"
           : "local";
 
@@ -1305,12 +1299,8 @@ function handleKeyboardShortcuts(event) {
   if (event.ctrlKey && (event.key === "i" || event.key === "I")) {
     if (!inInputField) {
       event.preventDefault();
-      // Read directly from the dropdown
-      const shortcutSelect = $("#shortcutTargetSelect");
       const target =
-        shortcutSelect &&
-        shortcutSelect.value === "cloud" &&
-        !shortcutSelect.querySelector("#shortcutTargetCloudOption").disabled
+        $("#shortcutCloud")?.checked && !$("#shortcutCloud")?.disabled
           ? "cloud"
           : "local";
 
@@ -7071,16 +7061,16 @@ function initializeUI(isRefresh = false) {
     restoreFromSupabaseButton.onclick = restoreFromSupabase;
   }
 
-  // --- MODIFIED: shortcutTargetSelect listener ---
-  const shortcutTargetSelect = $("#shortcutTargetSelect");
-  if (shortcutTargetSelect) {
-    shortcutTargetSelect.onchange = (e) => {
-      const newValue = e.target.value;
-      console.log(`Shortcut target changed to: ${newValue}`);
-      state.settings.shortcutTarget = newValue;
-      saveData();
-      updateHeaderShortcutButtons();
-      showNotification(`Shortcut target set to ${newValue === 'cloud' ? 'Cloud' : 'Local File'}.`, "info");
+  // --- MODIFIED: shortcutTargetGroup listener ---
+  const shortcutTargetGroup = $("#shortcutTargetGroup");
+  if (shortcutTargetGroup) {
+    shortcutTargetGroup.onchange = (e) => {
+      if (e.target.name === "shortcutTarget") {
+        console.log(`Shortcut target changed to: ${e.target.value}`);
+        // --- NEW: Update header buttons when radio changes ---
+        updateHeaderShortcutButtons();
+        // --- END NEW ---
+      }
     };
   }
   // --- END MODIFICATION ---
@@ -7192,17 +7182,16 @@ function updateSupabaseUI(user) {
   const loggedOutView = $("#cloudBackupLoggedOut");
   const loggedInView = $("#cloudBackupLoggedIn");
   const userEmailEl = $("#userEmail");
-
-  // --- NEW: Get new dropdown elements ---
-  const shortcutSelect = $("#shortcutTargetSelect");
-  const shortcutCloudOption = $("#shortcutTargetCloudOption");
+  const shortcutCloudInput = $("#shortcutCloud");
+  const shortcutCloudLabel = $("#shortcutCloudLabel");
+  const shortcutLocalInput = $("#shortcutLocal");
 
   if (
     !loggedOutView ||
     !loggedInView ||
     !userEmailEl ||
-    !shortcutSelect ||
-    !shortcutCloudOption
+    !shortcutCloudInput ||
+    !shortcutCloudLabel
   ) {
     console.warn(
       "Could not find all Supabase UI elements in Settings to update."
@@ -7215,25 +7204,32 @@ function updateSupabaseUI(user) {
     loggedOutView.classList.add("hidden");
     loggedInView.classList.remove("hidden");
     userEmailEl.textContent = user.email;
+    shortcutCloudInput.disabled = false;
+    shortcutCloudLabel.classList.remove(
+      "text-gray-400",
+      "opacity-60",
+      "cursor-not-allowed"
+    );
+    shortcutCloudLabel.classList.add("text-gray-300");
 
-    // Enable the Cloud option in the dropdown
-    shortcutCloudOption.disabled = false;
-    shortcutCloudOption.textContent = "Cloud Backup";
-
-    // Set the dropdown to the user's saved preference
-    shortcutSelect.value = state.settings.shortcutTarget || "cloud";
+    // --- NEW: Default to Cloud Backup on login ---
+    shortcutCloudInput.checked = true;
+    shortcutLocalInput.checked = false;
+    // --- END NEW ---
   } else {
     // User is logged OUT
     loggedOutView.classList.remove("hidden");
     loggedInView.classList.add("hidden");
     userEmailEl.textContent = "...";
-
-    // Disable the Cloud option and update its text
-    shortcutCloudOption.disabled = true;
-    shortcutCloudOption.textContent = "Cloud Backup (Not Logged In)";
-
-    // Force the dropdown to 'local' since cloud is disabled
-    shortcutSelect.value = "local";
+    shortcutCloudInput.disabled = true;
+    shortcutCloudInput.checked = false; // Uncheck it
+    if (shortcutLocalInput) shortcutLocalInput.checked = true; // Default to local
+    shortcutCloudLabel.classList.add(
+      "text-gray-400",
+      "opacity-60",
+      "cursor-not-allowed"
+    );
+    shortcutCloudLabel.classList.remove("text-gray-300");
   }
 
   // Update the header buttons to reflect the (new) shortcut state
@@ -7246,37 +7242,39 @@ function updateSupabaseUI(user) {
 function updateHeaderShortcutButtons() {
   const backupBtn = $("#headerBackupBtn");
   const restoreBtn = $("#headerRestoreBtn");
-  const shortcutSelect = $("#shortcutTargetSelect");
+  const localRadio = $("#shortcutLocal");
+  const cloudRadio = $("#shortcutCloud");
 
-  if (!backupBtn || !restoreBtn || !shortcutSelect) {
-    console.warn("Header shortcut buttons or select input not found.");
-    // Try to find the select input if it wasn't passed (for init)
-    const settingsShortcutSelect = $("#shortcutTargetSelect");
-    if (!settingsShortcutSelect) {
-      console.error("CRITICAL: shortcutTargetSelect not in DOM.");
-      return;
-    }
+  if (!backupBtn || !restoreBtn || !localRadio || !cloudRadio) {
+    console.warn("Header shortcut buttons or radio inputs not found.");
+    return;
   }
 
   const importInput = $("#importDataInput"); // Get the file input element
 
   // Check if cloud is selected AND enabled
-  const isCloud =
-    shortcutSelect.value === "cloud" &&
-    !shortcutSelect.querySelector("#shortcutTargetCloudOption").disabled;
+  const isCloud = cloudRadio.checked && !cloudRadio.disabled;
 
   if (isCloud) {
     // Set to CLOUD mode
+    // backupBtn.innerHTML = 'Backup'; // No longer changing text
+    // backupBtn.className = "btn btn-primary mr-2"; // No longer changing class
     backupBtn.dataset.tooltip = "Export to Cloud (Ctrl+E)";
     backupBtn.onclick = backupToSupabase; // Assign cloud backup function
 
+    // restoreBtn.innerHTML = 'Restore'; // No longer changing text
+    // restoreBtn.className = "btn btn-secondary mr-2"; // No longer changing class
     restoreBtn.dataset.tooltip = "Import from Cloud (Ctrl+I)";
     restoreBtn.onclick = restoreFromSupabase; // Assign cloud restore function
   } else {
     // Set to LOCAL mode (default)
+    // backupBtn.innerHTML = 'Exp.'; // No longer changing text
+    // backupBtn.className = "btn btn-secondary mr-2"; // No longer changing class
     backupBtn.dataset.tooltip = "Export Local File (Ctrl+E)";
     backupBtn.onclick = exportData; // Assign local export function
 
+    // restoreBtn.innerHTML = 'Imp.'; // No longer changing text
+    // restoreBtn.className = "btn btn-secondary mr-2"; // No longer changing class
     restoreBtn.dataset.tooltip = "Import Local File (Ctrl+I)";
     restoreBtn.onclick = () => {
       // For restore, we need to find the correct data tab and click the hidden input
