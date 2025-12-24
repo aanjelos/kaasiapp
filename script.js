@@ -17,11 +17,11 @@ const getDaysLeft = (dueDate) => {
 const SUPABASE_URL = "https://xcnirqsctkyyrvildqtm.supabase.co";
 const SUPABASE_KEY = "sb_publishable_cLW_C5L7xmIinyzSaKSmBQ_EFnjbntg"; // Your publishable key
 
-let supabase = null;
+let supabaseClient = null;
 try {
   // Use window.supabase.createClient, as the library is from a CDN
   if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log("Supabase client initialized.");
   } else {
     throw new Error("Supabase client library not found on window object.");
@@ -6777,7 +6777,7 @@ function initializeUI(isRefresh = false) {
   console.log("Initializing UI...");
 
   // --- NEW: Initialize Supabase and check auth state ---
-  if (!isRefresh && supabase) {
+  if (!isRefresh && supabaseClient) {
     initializeSupabase(); // This will check for a user session
   }
   // --- END NEW ---
@@ -7141,14 +7141,14 @@ function initializeUI(isRefresh = false) {
  * Updates the UI based on the user's login status.
  */
 async function initializeSupabase() {
-  if (!supabase) {
+  if (!supabaseClient) {
     console.error("Supabase client not available.");
     return;
   }
   console.log("Checking Supabase auth state...");
 
   // Handle auth state changes (e.g., login, logout)
-  supabase.auth.onAuthStateChange((event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
     console.log("Supabase auth state changed:", event, session);
     const user = session?.user || null;
     supabaseUser = user;
@@ -7157,7 +7157,7 @@ async function initializeSupabase() {
 
   // Check for initial session
   try {
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await supabaseClient.auth.getSession();
     if (error) {
       console.error("Error getting session:", error.message);
       throw error;
@@ -7310,10 +7310,10 @@ function updateHeaderShortcutButtons() {
  * Initiates the Google Sign-In flow via Supabase.
  */
 async function signInWithGoogle() {
-  if (!supabase) return;
+  if (!supabaseClient) return;
   console.log("Attempting Google Sign-In...");
   try {
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
       options: {
         // You can add scopes here if needed, e.g., 'email profile'
@@ -7337,10 +7337,10 @@ async function signInWithGoogle() {
  * Signs the user out from Supabase.
  */
 async function signOut() {
-  if (!supabase) return;
+  if (!supabaseClient) return;
   console.log("Attempting Sign-Out...");
   try {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabaseClient.auth.signOut();
     if (error) {
       console.error("Error during sign-out:", error.message);
       showNotification(`Sign-Out Error: ${error.message}`, "error");
@@ -7377,7 +7377,7 @@ async function backupToSupabase() {
     // We use 'upsert' to either create a new record or update the existing one for this user.
     // ** THE FIX IS HERE: { onConflict: 'user_id' } **
     // This tells Supabase to use the 'user_id' column to detect conflicts.
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("user_data")
       .upsert(
         {
@@ -7446,7 +7446,7 @@ async function restoreFromSupabase() {
         // ** THE FIX IS HERE: .order(...).limit(1) **
         // This makes the query more robust by ensuring we *only* get the single, most recent
         // backup for this user, which makes .single() safe to use.
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from("user_data")
           .select("data, updated_at")
           .eq("user_id", supabaseUser.id)
