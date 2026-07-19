@@ -1,6 +1,6 @@
 {
-  "name": "Kaasi Beta",
-  "short_name": "Kaasi Beta",
+  "name": "Kaasi",
+  "short_name": "Kaasi",
   "description": "Manage your finances, track expenses, and view insights effortlessly.",
   "start_url": "./index.html",
   "display": "standalone",
