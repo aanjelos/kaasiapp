@@ -3,8 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="application-version" content="v5.82j" />
-    <title>Kaasi - Expense Tracker | Manage Your Finances 🇱🇰</title>
+    <meta name="application-version" content="v6.352m" />
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="img/LogoIcon.svg">
+    <title>Kaasi Beta - Expense Tracker | Manage Your Finances 🇱🇰</title>
     <meta
       name="title"
       content="Kaasi - Expense Tracker | Manage Your Finances 🇱🇰"
@@ -41,20 +43,16 @@
       content="https://kaasi.com.lk/img/Metaimg.jpg"
     />
     <link rel="icon" href="img/LogoIcon.svg" type="image/svg+xml" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
-    <link
-      href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&display=swap"
-      rel="stylesheet"
-    />
     <!-- SUPABASE JAVASCRIPT CLIENT -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="tailwind.css" />
 
     <script
       async
@@ -67,7 +65,9 @@
       }
       gtag("js", new Date());
 
-      gtag("config", "G-2FSRSWZB28");
+      gtag("config", "G-2FSRSWZB28", {
+        cookie_domain: window.location.hostname
+      });
     </script>
   </head>
 
@@ -82,12 +82,100 @@
           onerror="this.onerror=null; this.src='https://placehold.co/60x60/1a1a1a/e67e26?text=K&font=satoshi';"
         />
       </div>
+      <!-- Loading screen tips container -->
+      <div id="preloader-tip-container" class="text-center px-6">
+        <p id="preloader-tip-text" class="text-sm text-gray-300 font-medium leading-relaxed"></p>
+      </div>
     </div>
 
-    <div id="app-content" class="p-4 md:p-8">
-      <div class="container mx-auto max-w-7xl">
+    <!-- START: PIN LOCK OVERLAY -->
+    <div id="pinLockOverlay" class="fixed inset-0 z-[99999] flex flex-col items-center justify-center transition-opacity duration-500 hidden bg-primary">
+      <div class="max-w-xs w-full px-6 flex flex-col items-center">
+        <img src="img/FullLogo.svg" alt="Kaasi" class="h-10 mb-8 theme-logo" />
+        <i class="fas fa-lock text-3xl text-accent-500 mb-4"></i>
+        <h2 class="text-2xl font-bold text-[var(--text-primary)] mb-2">App Locked</h2>
+        <p class="text-sm text-gray-300 mb-8 text-center" id="pinLockMessage">Enter your 4-digit PIN</p>
+        
+        <!-- Pin Dots -->
+        <div class="flex gap-4 mb-8" id="pinLockDots">
+          <div class="w-4 h-4 rounded-full border-2 border-gray-600 transition-all"></div>
+          <div class="w-4 h-4 rounded-full border-2 border-gray-600 transition-all"></div>
+          <div class="w-4 h-4 rounded-full border-2 border-gray-600 transition-all"></div>
+          <div class="w-4 h-4 rounded-full border-2 border-gray-600 transition-all"></div>
+        </div>
+
+        <!-- Numpad (Hidden on Desktop) -->
+        <div class="grid grid-cols-3 gap-y-6 gap-x-4 w-full mb-8 sm:hidden">
+          <button class="pin-btn" onclick="addPinDigit(1)">1</button>
+          <button class="pin-btn" onclick="addPinDigit(2)">2</button>
+          <button class="pin-btn" onclick="addPinDigit(3)">3</button>
+          <button class="pin-btn" onclick="addPinDigit(4)">4</button>
+          <button class="pin-btn" onclick="addPinDigit(5)">5</button>
+          <button class="pin-btn" onclick="addPinDigit(6)">6</button>
+          <button class="pin-btn" onclick="addPinDigit(7)">7</button>
+          <button class="pin-btn" onclick="addPinDigit(8)">8</button>
+          <button class="pin-btn" onclick="addPinDigit(9)">9</button>
+          <div></div>
+          <button class="pin-btn" onclick="addPinDigit(0)">0</button>
+          <button class="pin-btn !bg-transparent !border-transparent hover:!bg-[var(--border-color)]" onclick="removePinDigit()">
+            <i class="fas fa-backspace"></i>
+          </button>
+        </div>
+
+        <button onclick="showForgotPinModal()" class="text-sm text-accent-500 hover:underline">Forgot PIN?</button>
+      </div>
+    </div>
+    <!-- END: PIN LOCK OVERLAY -->
+
+    <!-- START: FORGOT PIN / SECURITY QUESTION MODAL -->
+    <div id="securityQuestionModal" class="modal z-[100000]">
+      <div class="modal-content max-w-sm">
+        <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('securityQuestionModal')">&times;</span>
+        <h2 class="text-xl font-semibold mb-2" id="securityModalTitle">Security Recovery</h2>
+        <p class="text-sm text-gray-300 mb-4" id="securityModalDesc">Answer your security question to unlock the app.</p>
+        
+        <form id="securityQuestionForm" class="space-y-4">
+          <!-- Shown during recovery -->
+          <div id="securityQuestionDisplayGroup">
+            <label class="block text-sm font-medium mb-1">Security Question</label>
+            <div id="securityQuestionDisplay" class="p-3 bg-tertiary rounded border border-theme text-sm font-medium text-[var(--text-primary)] mb-2">
+              Question goes here
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Your Answer</label>
+            <input type="text" id="securityAnswerInput" class="w-full" placeholder="Type your answer" required autocomplete="off" aria-label="Type your answer">
+          </div>
+
+          <div class="flex gap-2 justify-end mt-4">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('securityQuestionModal')">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="securityModalSubmitBtn">Confirm</button>
+          </div>
+        </form>
+
+        <div id="emergencyResetGroup" class="hidden mt-6 pt-4 border-t border-gray-700 text-center">
+          <p class="text-sm font-medium text-gray-300 mb-2">Can't remember your answer?</p>
+          <p class="text-sm text-gray-300 mb-4 leading-relaxed">
+            Message <a href="https://instagram.com/kaasi.com.lk" target="_blank" class="text-theme hover:underline">@kaasi.com.lk on Instagram</a> or email <a href="mailto:aanjelo99@gmail.com" class="text-theme hover:underline">aanjelo99@gmail.com</a> to request a recovery code.
+          </p>
+          <div class="flex gap-2">
+            <input type="text" id="recoveryCodeInput" class="w-full text-center text-sm uppercase" placeholder="Enter Recovery Code" autocomplete="off" aria-label="Enter Recovery Code">
+            <button type="button" class="btn btn-secondary whitespace-nowrap" onclick="verifyRecoveryCode()">Unlock</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- END: FORGOT PIN MODAL -->
+
+    <div id="app-content" class="px-4 pb-4 pt-6 md:p-8 transition-all duration-300">
+      <div class="container mx-auto max-w-7xl relative">
+        <!-- START: MOBILE MENU OVERLAY -->
+        <div id="mobileMenuOverlay" class="fixed inset-0 bg-black opacity-0 invisible transition-all duration-300 pointer-events-none z-[35] backdrop-blur-[2px] touch-none"></div>
+        <!-- END: MOBILE MENU OVERLAY -->
+
         <!-- START: UPDATED HEADER -->
-        <header class="flex justify-between items-center mb-6 md:mb-10">
+        <header class="flex justify-between items-center mb-6 md:mb-10 relative z-40">
           <div id="header-logo-container">
             <a
               href="https://kaasi.com.lk"
@@ -102,19 +190,21 @@
               />
             </a>
           </div>
-          <div class="flex items-stretch">
+          <div class="hidden md:flex items-stretch">
             <button
               id="monthlyViewBtn"
+              data-analytics="open_monthly_view"
               class="btn btn-secondary mr-2"
-              data-tooltip="Monthly Breakdown (M)"
+              data-tooltip="All Transactions (A)"
             >
               <i class="fas fa-calendar-alt"></i>
-              <span class="hidden md:inline">Monthly View</span>
+              <span class="hidden md:inline">All Transactions</span>
             </button>
 
             <!-- UPDATED HEADER SHORTCUT BUTTONS -->
             <button
               id="headerBackupBtn"
+              data-analytics="export_backup"
               class="btn btn-secondary mr-2"
               data-tooltip="Export Local File (Ctrl+E)"
             >
@@ -122,6 +212,7 @@
             </button>
             <button
               id="headerRestoreBtn"
+              data-analytics="import_backup"
               class="btn btn-secondary mr-2"
               data-tooltip="Import Local File (Ctrl+I)"
             >
@@ -138,20 +229,60 @@
             </button>
             <button
               id="settingsBtn"
+              data-analytics="open_settings"
               class="btn btn-icon"
               data-tooltip="Settings (S)"
             >
               <i class="fas fa-cog fa-lg"></i>
             </button>
           </div>
+
+          <!-- Mobile Dropdown Toggle Button -->
+          <div class="md:hidden flex items-center ml-auto relative z-40">
+             <button id="mobileMenuBtn" class="text-gray-300 hover:text-white transition-colors focus:outline-none w-12 h-12 flex items-center justify-center">
+               <i class="fas fa-bars text-2xl transition-transform duration-300 ease-in-out" id="mobileMenuIcon"></i>
+             </button>
+          </div>
         </header>
         <!-- END: UPDATED HEADER -->
 
+        <!-- Mobile Dropdown Menu -->
+        <div id="mobileDropdown" class="absolute right-0 top-[60px] z-40 gap-6 flex flex-col items-end transition-all duration-300 opacity-0 invisible md:hidden pointer-events-none">
+           <!-- All Transactions -->
+           <div class="flex items-center gap-3 pointer-events-auto">
+             <span onclick="document.getElementById('dropMonthlyBtn').click()" class="cursor-pointer hover:brightness-110 transition-all bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-semibold px-3 py-1.5 rounded shadow-lg truncate max-w-[calc(100vw-6rem)]">All Transactions</span>
+             <button id="dropMonthlyBtn" class="w-12 h-12 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] shadow-lg flex items-center justify-center hover:brightness-110 transition-all">
+               <i class="fas fa-calendar-alt"></i>
+             </button>
+           </div>
+           <!-- Export Backup -->
+           <div class="flex items-center gap-3 pointer-events-auto">
+             <span id="dropBackupText" onclick="document.getElementById('dropBackupBtn').click()" class="cursor-pointer hover:brightness-110 transition-all bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-semibold px-3 py-1.5 rounded shadow-lg truncate max-w-[calc(100vw-6rem)]">Export Backup</span>
+             <button id="dropBackupBtn" class="w-12 h-12 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] shadow-lg flex items-center justify-center hover:brightness-110 transition-all">
+               <i class="fas fa-floppy-disk"></i>
+             </button>
+           </div>
+           <!-- Import Backup -->
+           <div class="flex items-center gap-3 pointer-events-auto">
+             <span id="dropRestoreText" onclick="document.getElementById('dropRestoreBtn').click()" class="cursor-pointer hover:brightness-110 transition-all bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-semibold px-3 py-1.5 rounded shadow-lg truncate max-w-[calc(100vw-6rem)]">Import Backup</span>
+             <button id="dropRestoreBtn" class="w-12 h-12 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] shadow-lg flex items-center justify-center hover:brightness-110 transition-all">
+               <i class="fas fa-download"></i>
+             </button>
+           </div>
+           <!-- Settings -->
+           <div class="flex items-center gap-3 pointer-events-auto">
+             <span onclick="document.getElementById('dropSettingsBtn').click()" class="cursor-pointer hover:brightness-110 transition-all bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs font-semibold px-3 py-1.5 rounded shadow-lg truncate max-w-[calc(100vw-6rem)]">Settings</span>
+             <button id="dropSettingsBtn" class="w-12 h-12 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] shadow-lg flex items-center justify-center hover:brightness-110 transition-all">
+               <i class="fas fa-cog"></i>
+             </button>
+           </div>
+        </div>
+
         <div
-          class="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 main-content-grid"
+          class="grid grid-cols-1 lg:grid-cols-3 gap-6 main-content-grid"
         >
-          <div class="lg:col-span-1 space-y-6">
-            <div class="card">
+          <div class="contents lg:block lg:col-span-1 lg:space-y-6">
+            <div class="card order-1 lg:order-none">
               <h2
                 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2"
               >
@@ -163,33 +294,57 @@
                     for="transactionType"
                     class="block text-sm font-medium mb-1"
                     >Type</label
-                  ><select id="transactionType" name="transactionType" required>
+                  ><select id="transactionType" name="transactionType" required aria-label="Transaction Type">
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
+                    <option value="transfer">Transfer Between Accounts</option>
                   </select>
                 </div>
                 <div>
                   <label for="amount" class="block text-sm font-medium mb-1"
                     >Amount (LKR)</label
-                  ><input
-                    type="number"
-                    id="amount"
-                    name="amount"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g., 1500.50"
-                    required
-                  />
+                  >
+                  <div class="relative flex items-center w-full">
+                    <input
+                      type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8"
+                      id="amount"
+                      name="amount"
+                      step="0.01"
+                      min="0"
+                      placeholder="e.g., 1500.50"
+                      required
+                    aria-label="e.g., 1500.50" />
+                    <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                      <i class="fas fa-calculator"></i>
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label for="account" class="block text-sm font-medium mb-1"
-                    >Account</label
-                  ><select id="account" name="account" required></select>
+                <div id="normalAccountGroup">
+                  <label for="account" class="block text-sm font-medium mb-1">Account</label>
+                  <select id="account" name="account" aria-label="Account"></select>
+                </div>
+                <div id="transferAccountsGroup" class="hidden space-y-3">
+                  <div>
+                    <label for="transferFrom" class="block text-sm font-medium mb-1">From</label>
+                    <select id="transferFrom" name="transferFrom" aria-label="From Account"></select>
+                  </div>
+                  <div>
+                    <label for="transferTo" class="block text-sm font-medium mb-1">To</label>
+                    <select id="transferTo" name="transferTo" aria-label="To Account"></select>
+                  </div>
+                </div>
+                <div id="transferFeeGroup" class="hidden">
+                  <label for="transferFee" class="block text-sm font-medium mb-1">Bank Transfer Fee</label>
+                  <div class="relative flex items-center w-full">
+                    <input type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8" id="transferFee" name="transferFee" step="0.01" min="0" placeholder="e.g., 25.00" aria-label="Transfer Fee">
+                    <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                      <i class="fas fa-calculator"></i>
+                    </button>
+                  </div>
                 </div>
                 <div id="categoryGroup">
-                  <label for="category" class="block text-sm font-medium mb-1"
-                    >Category</label
-                  ><select id="category" name="category" required></select>
+                  <label id="categoryLabel" for="category" class="block text-sm font-medium mb-1">Category</label>
+                  <select id="category" name="category" required aria-label="Category"></select>
                 </div>
                 <div>
                   <label
@@ -203,12 +358,12 @@
                     name="description"
                     placeholder="e.g., Lunch, Monthly Groceries"
                     required
-                  />
+                  aria-label="e.g., Lunch, Monthly Groceries" />
                 </div>
                 <div>
                   <label for="date" class="block text-sm font-medium mb-1"
                     >Date</label
-                  ><input type="date" id="date" name="date" required />
+                  ><input type="date" id="date" name="date" required aria-label="Date" />
                 </div>
                 <button type="submit" class="btn btn-primary w-full">
                   <i class="fas fa-save"></i> Add Transaction
@@ -216,7 +371,24 @@
               </form>
             </div>
 
-            <div class="card" id="creditCardDashboardSection">
+            <div class="card order-3 lg:order-none hidden" id="categoryBudgetsDashboardCard">
+              <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
+                <h2 class="text-xl font-semibold">Category Budgets</h2>
+                <button
+                  id="toggleBudgetsCardBtn"
+                  class="btn btn-icon btn-sm text-gray-300 hover:text-white"
+                  data-tooltip="Toggle View"
+                >
+                  <i class="fas fa-chevron-up"></i>
+                </button>
+              </div>
+              <div id="categoryBudgetsTipContainer" class="mb-4 hidden"></div>
+              <div id="categoryBudgetsProgressContainer" class="space-y-4">
+                <!-- Budgets injected here by JS -->
+              </div>
+            </div>
+
+            <div class="card order-4 lg:order-none" id="creditCardDashboardSection">
               <div
                 class="flex justify-between items-center mb-4 pb-2 border-b border-gray-600"
               >
@@ -229,16 +401,13 @@
                   <i class="fas fa-history"></i>
                 </button>
               </div>
-              <div class="mb-4 space-y-2">
-                <div class="flex justify-between items-center">
-                  <span class="font-medium">Credit Limit:</span
-                  ><span id="ccLimit" class="font-semibold">LKR 0.00</span>
+              <div class="mb-5 mt-2">
+                <div class="flex justify-between items-center mb-1.5 text-sm">
+                  <span class="text-gray-300">Available: <span id="ccAvailable" class="font-semibold text-white">LKR 0.00</span></span>
+                  <span class="text-gray-400">Limit: <span id="ccLimit">LKR 0.00</span></span>
                 </div>
-                <div class="flex justify-between items-center">
-                  <span class="font-medium">Available Balance:</span
-                  ><span id="ccAvailable" class="font-semibold accent-text"
-                    >LKR 0.00</span
-                  >
+                <div class="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                  <div id="ccProgressBar" class="bg-accent-500 h-1.5 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
                 </div>
               </div>
               <h3 class="text-lg font-semibold mb-3 mt-4">
@@ -248,15 +417,21 @@
                 <div>
                   <label for="ccAmount" class="block text-sm font-medium mb-1"
                     >Amount (LKR)</label
-                  ><input
-                    type="number"
-                    id="ccAmount"
-                    name="ccAmount"
-                    step="0.01"
-                    min="0"
-                    placeholder="Amount spent"
-                    required
-                  />
+                  >
+                  <div class="relative flex items-center w-full">
+                    <input
+                      type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8"
+                      id="ccAmount"
+                      name="ccAmount"
+                      step="0.01"
+                      min="0"
+                      placeholder="Amount spent"
+                      required
+                    aria-label="Amount spent" />
+                    <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                      <i class="fas fa-calculator"></i>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label
@@ -269,45 +444,40 @@
                     name="ccDescription"
                     placeholder="e.g., Online purchase, Ride fare"
                     required
-                  />
+                  aria-label="e.g., Online purchase, Ride fare" />
                 </div>
                 <div>
                   <label for="ccDate" class="block text-sm font-medium mb-1"
                     >Date</label
-                  ><input type="date" id="ccDate" name="ccDate" required />
+                  ><input type="date" id="ccDate" name="ccDate" required aria-label="Cc Date" />
                 </div>
                 <button type="submit" class="btn btn-primary w-full">
                   <i class="fas fa-save"></i> Add CC Expense
                 </button>
               </form>
             </div>
+            
           </div>
 
-          <div class="lg:col-span-2 space-y-6 md:space-y-8">
-            <div class="card">
+          <div class="contents lg:block lg:col-span-2 lg:space-y-6">
+            <div class="card order-2 lg:order-none">
               <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold">Balance Overview</h2>
-                <button
-                  id="openTransferModalBtn"
-                  class="btn btn-icon btn-sm"
-                  data-tooltip="Transfer Money (T)"
-                >
-                  <i class="fas fa-exchange-alt fa-lg"></i>
-                </button>
               </div>
               <div
+                id="dashboardTopCardsContainer"
                 class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4"
               >
                 <div class="bg-gray-700 p-4 rounded-lg text-center shadow-md">
-                  <h3 class="text-sm font-medium text-gray-400 mb-1">
+                  <h3 class="text-sm font-medium text-gray-300 mb-1">
                     Total Available
                   </h3>
                   <p id="totalBalance" class="text-2xl font-bold accent-text">
                     LKR 0.00
                   </p>
                 </div>
-                <div class="bg-gray-700 p-4 rounded-lg text-center shadow-md">
-                  <h3 class="text-sm font-medium text-gray-400 mb-1">
+                <div id="totalPotentialCard" class="bg-gray-700 p-4 rounded-lg text-center shadow-md">
+                  <h3 class="text-sm font-medium text-gray-300 mb-1">
                     Total Potential
                   </h3>
                   <p
@@ -316,7 +486,7 @@
                   >
                     LKR 0.00
                   </p>
-                  <p class="text-xs text-gray-500">(Available + Owed to Me)</p>
+                  <p class="text-xs text-gray-400">(Available + Owed to Me)</p>
                 </div>
                 <button
                   id="cashCounterBtn"
@@ -326,7 +496,7 @@
                   <i
                     class="fas fa-money-bill-wave text-2xl accent-text mb-1"
                   ></i>
-                  <span class="text-sm font-medium text-gray-400"
+                  <span class="text-sm font-medium text-gray-300"
                     >Cash Counter</span
                   >
                 </button>
@@ -336,7 +506,7 @@
                 <!-- Account cards like Cash, Bank 1, etc., will be injected here by JS -->
               </div>
               <div
-                class="mt-4 text-xs text-gray-400 flex flex-col sm:flex-row justify-between gap-2"
+                class="mt-4 text-xs text-gray-300 flex flex-col sm:flex-row justify-between gap-2"
               >
                 <span id="yearlyTotals"
                   >Yearly: Earned LKR 0.00 / Spent LKR 0.00</span
@@ -347,20 +517,21 @@
                 ></span>
               </div>
             </div>
-            <div class="card">
+            <div class="card order-5 lg:order-none">
               <h2 class="text-xl font-semibold mb-4">Recent Transactions</h2>
               <div
                 id="recentTransactionsList"
-                class="space-y-3 max-h-60 overflow-y-auto pr-2"
+                class="space-y-3 max-h-80 overflow-y-auto pr-2"
               >
-                <p class="text-gray-400 text-sm">No transactions yet.</p>
+                <p class="text-gray-300 text-sm">No transactions yet.</p>
               </div>
+
             </div>
-            <div class="card">
-              <h2 class="text-xl font-semibold mb-4">
+            <div class="card order-6 lg:order-none" id="debtsInstallmentsCard">
+              <h2 class="text-xl font-semibold mb-4" id="debtsInstallmentsTitle">
                 Debts, Receivables & Installments
               </h2>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="debtsReceivablesContainer">
                 <div>
                   <h3
                     class="text-lg font-semibold mb-3 text-expense flex justify-between items-center"
@@ -381,6 +552,7 @@
                       id="viewDebtsBtn"
                       class="btn btn-outline-expense btn-sm w-full"
                       data-tooltip="View All Debts (D)"
+                      data-analytics="open_debts"
                     >
                       <i class="fas fa-list-ul"></i> View All Debts
                     </button>
@@ -406,15 +578,16 @@
                       id="viewReceivablesBtn"
                       class="btn btn-outline-income btn-sm w-full"
                       data-tooltip="View All Receivables (R)"
+                      data-analytics="open_receivables"
                     >
                       <i class="fas fa-list-ul"></i> View All Receivables
                     </button>
                   </div>
                 </div>
               </div>
-              <div class="mt-6 pt-4 border-t border-gray-600">
+              <div class="mt-6 pt-4 border-t border-gray-600" id="installmentsContainer">
                 <h3
-                  class="text-lg font-semibold mb-3 text-gray-200 flex justify-between items-center"
+                  class="text-lg font-semibold mb-3 text-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-y-1"
                 >
                   <span
                     ><i class="fas fa-calendar-check mr-2"></i>Installment
@@ -431,13 +604,13 @@
                   <i class="fas fa-plus"></i> Add New Plan
                 </button>
                 <div id="installmentList" class="space-y-3">
-                  <p class="text-gray-400 text-sm">
+                  <p class="text-gray-300 text-sm">
                     No installment plans recorded.
                   </p>
                 </div>
               </div>
             </div>
-            <div class="card">
+            <div class="card order-7 lg:order-none">
               <div class="flex justify-between items-center mb-4">
                 <h2 id="dashboardChartTitle" class="text-xl font-semibold">
                   Monthly Income vs Expenses (Last 12 Months)
@@ -458,12 +631,12 @@
         </div>
       </div>
 
-      <div id="monthlyViewModal" class="modal">
+      <div id="monthlyViewModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-4xl">
-          <span class="modal-close" onclick="closeModal('monthlyViewModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('monthlyViewModal')"
             >&times;</span
           >
-          <h2 class="text-2xl font-semibold mb-4">Monthly Breakdown</h2>
+          <h2 class="text-2xl font-semibold mb-4 pr-8">All Transactions</h2>
           <div
             class="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-600 pb-2 gap-2"
           >
@@ -473,26 +646,24 @@
                 <select
                   id="yearSelector"
                   class="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm"
-                ></select>
+                 aria-label="Year Selector"></select>
               </div>
             </div>
             <div
               id="monthTabs"
-              class="flex flex-wrap justify-center gap-x-1"
+              class="flex overflow-x-auto whitespace-nowrap gap-x-2 hide-scrollbar edge-fade py-1 px-4 max-w-full"
             ></div>
           </div>
-          <!-- MODIFIED: Replaced toggle with a dropdown -->
-          <div
-            class="my-4 flex flex-col sm:flex-row items-center gap-x-2 gap-y-3"
-          >
+          <!-- Search and Filter Toggle Row -->
+          <div class="my-4 flex flex-col sm:flex-row items-center gap-x-2 gap-y-3">
             <div class="flex-grow w-full flex items-center gap-x-2">
               <input
                 type="search"
                 id="monthlySearchInput"
                 name="monthlySearch"
-                placeholder="Search description, category, amount, 'income' or 'expense'..."
+                placeholder="Search description or amount..."
                 class="flex-grow"
-              />
+              aria-label="Search description or amount..." />
               <button
                 id="clearMonthlySearchBtn"
                 class="btn-icon-clear-search hidden flex-shrink-0"
@@ -502,30 +673,91 @@
                 <i class="fas fa-times"></i>
               </button>
             </div>
-            <div class="flex-shrink-0">
-              <select id="searchScopeSelect" class="w-full sm:w-auto">
-                <option value="month" selected>Month &nbsp; &nbsp;</option>
-                <option value="year">Year &nbsp;</option>
-              </select>
+            <div class="flex-shrink-0 w-full sm:w-auto">
+              <button id="toggleAdvancedFiltersBtn" class="btn btn-secondary w-full sm:w-auto relative transition-colors duration-200" data-tooltip="Advanced Filters">
+                <i class="fas fa-sliders-h mr-1 filter-icon"></i> <span class="filter-text">Filters</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Advanced Filters Accordion -->
+          <div id="advancedFiltersAccordion" class="hidden mb-4 rounded-lg p-4 border border-gray-600/50 bg-secondary">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3"><i class="fas fa-filter mr-1 text-gray-300"></i> Advanced Filters</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <!-- Custom Date Range -->
+              <div class="flex flex-col gap-1.5 md:col-span-2">
+                <label for="filterDateRange" class="text-xs text-gray-300">Date Range</label>
+                <select id="filterDateRange" class="w-full text-sm px-2 py-1.5 transition-colors focus:outline-none bg-tertiary border border-theme rounded-md" aria-label="Filter Date Range">
+                  <option value="none">This Month (Default)</option>
+                  <option value="allTime">All Time</option>
+                  <option value="ytd">Year to Date</option>
+                  <option value="6m">Past 6 Months</option>
+                  <option value="1y">Past 12 Months</option>
+                  <option value="lastYear">Last Year</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+                <div id="customDateInputs" class="hidden flex-wrap items-center gap-2 mt-0.5">
+                  <input type="date" id="filterStartDate" class="flex-1 min-w-[120px] text-sm px-2 py-1" data-tooltip="Start Date" aria-label="Filter Start Date" />
+                  <span class="text-gray-400 text-xs">to</span>
+                  <input type="date" id="filterEndDate" class="flex-1 min-w-[120px] text-sm px-2 py-1" data-tooltip="End Date" aria-label="Filter End Date" />
+                </div>
+              </div>
+              
+              <!-- Transaction Type -->
+              <div class="flex flex-col gap-1 md:col-span-1">
+                <label class="text-xs text-gray-300" for="filterType">Type</label>
+                <select id="filterType" class="w-full text-sm px-2 py-1" aria-label="Filter Type">
+                  <option value="all">All Types</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+              </div>
+
+              <!-- Category (Multi-Select) -->
+              <div class="flex flex-col gap-1 md:col-span-1 relative" id="filterCategoryContainer">
+                <label class="text-xs text-gray-300">Category</label>
+                <button type="button" id="filterCategoryBtn" class="w-full text-sm px-2 py-1 flex justify-between items-center text-left transition-colors focus:outline-none bg-tertiary border border-theme rounded-md min-h-[42px]">
+                  <span id="filterCategoryBtnText" class="truncate pr-2 text-gray-200">All Categories</span>
+                  <i class="fas fa-chevron-down text-[10px] text-gray-300"></i>
+                </button>
+                <div id="filterCategoryDropdown" class="absolute top-full left-0 mt-1 w-full z-50 hidden border border-gray-600 rounded shadow-lg max-h-48 overflow-y-auto custom-scrollbar flex-col p-1 bg-secondary">
+                  <!-- Checkboxes populated dynamically via populateFilterCategories() -->
+                </div>
+              </div>
+
+              <!-- Amount Range -->
+              <div class="flex flex-col gap-1 md:col-span-2">
+                <label class="text-xs text-gray-300">Amount Range</label>
+                <div class="flex flex-wrap items-center gap-2">
+                  <input type="number" id="filterMinAmount" placeholder="Min" class="flex-1 min-w-[80px] text-sm px-2 py-1" min="0" aria-label="Min" />
+                  <span class="text-gray-400 text-xs">-</span>
+                  <input type="number" id="filterMaxAmount" placeholder="Max" class="flex-1 min-w-[80px] text-sm px-2 py-1" min="0" aria-label="Max" />
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-end mt-4">
+              <button id="resetAdvancedFiltersBtn" class="text-sm text-gray-300 hover:text-white transition-colors focus:outline-none">
+                <i class="fas fa-undo-alt mr-1"></i> Reset Filters
+              </button>
             </div>
           </div>
           <div id="monthlyDetailsContainer" class="mt-4">
-            <p class="text-center text-gray-400">
+            <p class="text-center text-gray-300">
               Select a month to view details.
             </p>
           </div>
         </div>
       </div>
 
-      <div id="settingsModal" class="modal">
+      <div id="settingsModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-xl">
-          <span class="modal-close" onclick="closeModal('settingsModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('settingsModal')"
             >&times;</span
           >
           <h2 class="text-2xl font-semibold mb-1 text-center">Settings</h2>
           <div id="settingsTabNav" class="border-b border-gray-600 mb-0">
             <ul
-              class="flex flex-wrap -mb-px text-sm font-medium text-center justify-center"
+              class="flex flex-nowrap overflow-x-auto hide-scrollbar edge-fade px-4 w-max max-w-full mx-auto -mb-px text-sm font-medium text-center"
               id="settingsTabsContainer"
             ></ul>
           </div>
@@ -543,7 +775,7 @@
                 </h3>
                 <form id="manageAccountsForm" class="space-y-3">
                   <div id="accountManagementList" class="space-y-3"></div>
-                  <p class="text-xs text-gray-400 mt-2">
+                  <p class="text-xs text-gray-300 mt-2">
                     Note: 'Cash' account name cannot be changed. Balances and
                     other names can be updated.
                   </p>
@@ -555,11 +787,42 @@
                   </button>
                 </form>
               </div>
-            </div>
-            <div
-              id="settingsCreditCardPanel"
-              class="settings-tab-panel space-y-6 hidden"
-            >
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <h3 class="text-lg font-semibold mb-3">Transfer Settings</h3>
+                <form id="settingsTransferFeeForm" class="space-y-3">
+                  <div>
+                    <label
+                      for="settingsDefaultTransferFee"
+                      class="block text-sm font-medium mb-1"
+                      >Default Bank Transfer Fee (LKR)</label
+                    >
+                    <div class="relative flex items-center w-full">
+                    <input
+                      type="text" inputmode="decimal" autocomplete="off"
+                      id="settingsDefaultTransferFee"
+                      name="defaultTransferFee"
+                      step="0.01"
+                      min="0"
+                      placeholder="e.g., 25.00"
+                      class="calc-amount text-sm rounded w-full pr-8"
+                      required
+                     aria-label="Default Transfer Fee" />
+                      <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                        <i class="fas fa-calculator"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    class="btn btn-primary mt-2 btn-sm w-full sm:w-auto"
+                  >
+                    Save Transfer Settings
+                  </button>
+                </form>
+              </div>
               <div
                 class="card !p-4"
                 style="background-color: var(--bg-tertiary)"
@@ -572,16 +835,21 @@
                       class="block text-sm font-medium mb-1"
                       >Current Limit (LKR)</label
                     >
+                    <div class="relative flex items-center w-full">
                     <input
-                      type="number"
+                      type="text" inputmode="decimal" autocomplete="off"
                       id="settingsCcLimitAmount"
                       name="ccLimitAmount"
                       step="0.01"
                       min="0"
                       placeholder="Enter total limit"
                       required
-                      class="!py-1 !px-2 text-sm"
-                    />
+                      class="calc-amount pr-8 text-sm"
+                    aria-label="Enter total limit" />
+                    <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                      <i class="fas fa-calculator"></i>
+                    </button>
+                  </div>
                   </div>
                   <button type="submit" class="btn btn-primary btn-sm">
                     Set/Update Limit
@@ -602,9 +870,9 @@
                       type="checkbox"
                       id="toggleCcSection"
                       class="sr-only peer"
-                    />
+                    aria-label="Toggle Cc Section" />
                     <div
-                      class="w-11 h-6 bg-gray-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-primary/50 rounded-full peer peer-checked:bg-accent-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
+                      class="w-11 h-6 bg-gray-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-500/50 rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
                     ></div>
                   </label>
                 </div>
@@ -619,6 +887,80 @@
                 style="background-color: var(--bg-tertiary)"
               >
                 <h3 class="text-lg font-semibold mb-3">
+                  Hidden Category Rules
+                </h3>
+                <p class="text-xs text-gray-300 mb-4">
+                  Define what happens when a category is marked as "Hidden" (using the <i class="fas fa-eye-slash mx-1"></i> icon below).
+                </p>
+                <div class="space-y-3" id="hiddenCategoryRulesContainer">
+                  <!-- Primary Rules -->
+                  <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium text-gray-300">Hide from Dashboard Charts</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="rule_excludeFromDashboardCharts" class="sr-only peer" onchange="toggleHiddenRule('excludeFromDashboardCharts')" aria-label="Rule_exclude From Dashboard Charts">
+                      <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                    </label>
+                  </div>
+
+                  <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium text-gray-300">Exclude from PDF Reports</label>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="rule_excludeFromReports" class="sr-only peer" onchange="toggleHiddenRule('excludeFromReports')" aria-label="Rule_exclude From Reports">
+                      <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                    </label>
+                  </div>
+                  
+                  <!-- Accordion for Advanced Rules -->
+                  <div class="mt-4">
+                    <button type="button" class="w-full flex justify-between items-center p-3 advanced-rules-btn transition-colors focus:outline-none" onclick="toggleAdvancedRules()">
+                      <span class="text-sm font-medium text-gray-200">Advanced Exclusion Rules</span>
+                      <i id="advancedRulesIcon" class="fas fa-chevron-down text-gray-300 text-xs"></i>
+                    </button>
+                    <div id="advancedRulesContainer" class="hidden p-3 space-y-3 advanced-rules-content">
+                      <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium text-gray-300">Hide from Monthly Breakdown Totals</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="rule_excludeFromMonthlyTotals" class="sr-only peer" onchange="toggleHiddenRule('excludeFromMonthlyTotals')" aria-label="Rule_exclude From Monthly Totals">
+                          <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        </label>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium text-gray-300">Hide from Monthly Pie Chart</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="rule_excludeFromPieChart" class="sr-only peer" onchange="toggleHiddenRule('excludeFromPieChart')" aria-label="Rule_exclude From Pie Chart">
+                          <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        </label>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium text-gray-300">Hide from Today/Past 7 Days Stats</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="rule_excludeFromQuickStats" class="sr-only peer" onchange="toggleHiddenRule('excludeFromQuickStats')" aria-label="Rule_exclude From Quick Stats">
+                          <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        </label>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium text-gray-300">Hide from Yearly Totals</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="rule_excludeFromYearlyTotals" class="sr-only peer" onchange="toggleHiddenRule('excludeFromYearlyTotals')" aria-label="Rule_exclude From Yearly Totals">
+                          <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        </label>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium text-gray-300">Dim in Transaction Lists (Grey out)</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="rule_dimInTransactionLists" class="sr-only peer" onchange="toggleHiddenRule('dimInTransactionLists')" aria-label="Rule_dim In Transaction Lists">
+                          <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <h3 class="text-lg font-semibold mb-3">
                   Manage Expense Categories
                 </h3>
                 <form id="addCategoryForm" class="flex gap-2 mb-3">
@@ -626,9 +968,9 @@
                     type="text"
                     id="newCategoryName"
                     placeholder="New category name"
-                    class="flex-grow !py-1 !px-2 text-sm"
+                    class="flex-grow text-sm"
                     required
-                  />
+                  aria-label="New category name" />
                   <button type="submit" class="btn btn-primary btn-sm">
                     Add
                   </button>
@@ -636,21 +978,91 @@
                 <ul id="categorySettingsList" class="space-y-2"></ul>
               </div>
             </div>
+            
+            <div
+              id="settingsBudgetsPanel"
+              class="settings-tab-panel space-y-6 hidden"
+            >
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <h3 class="text-lg font-semibold mb-3">Add Budget</h3>
+                <form id="addBudgetForm" class="space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Select Categories</label>
+                    <div id="addBudgetCategoriesContainer" class="max-h-60 overflow-y-auto space-y-1 bg-black/20 p-2 rounded-md border border-gray-600">
+                      <!-- Checkboxes populated via JS -->
+                    </div>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Budget Name <span class="text-xs text-gray-300 font-normal">(Optional if selecting a single category)</span></label>
+                    <input type="text" id="addBudgetName" placeholder="e.g. Groceries" class="w-full text-sm" aria-label="e.g. Groceries">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Monthly Limit (LKR)</label>
+                    <div class="relative flex items-center w-full">
+                      <input type="text" inputmode="decimal" autocomplete="off" id="addBudgetLimit" class="calc-amount w-full pr-8 text-sm" placeholder="e.g. 15000.00" required step="0.01" min="0" aria-label="e.g. 15000.00">
+                      <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                        <i class="fas fa-calculator"></i>
+                      </button>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-sm w-full">Add Budget</button>
+                </form>
+              </div>
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <div class="flex justify-between items-center mb-3 gap-2">
+                  <h3 class="text-lg font-semibold whitespace-nowrap">Active Budgets</h3>
+                  <select id="budgetSortOrderSelect" class="text-xs pl-2 pr-8 py-1.5 transition-colors focus:outline-none bg-tertiary border border-theme rounded-md w-auto cursor-pointer appearance-none" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.5rem top 50%; background-size: 0.65em auto;" aria-label="Budget Sort Order Select">
+                    <option value="added">Order Added</option>
+                    <option value="alpha_asc">Alphabetical (A-Z)</option>
+                    <option value="limit_desc">Highest Limit</option>
+                    <option value="limit_asc">Lowest Limit</option>
+                    <option value="percent_desc">Highest % Used</option>
+                  </select>
+                </div>
+                <div id="activeBudgetsList" class="space-y-3">
+                  <p class="text-xs text-gray-300">No active budgets.</p>
+                </div>
+              </div>
+            </div>
+
             <!-- START: UPDATED DATA MANAGEMENT PANEL -->
             <div
               id="settingsDataManagementPanel"
               class="settings-tab-panel space-y-6 hidden"
             >
-              <!-- NEW: Cloud Backup Card -->
+
+              <!-- 1. Storage Usage -->
               <div
                 class="card !p-4"
                 style="background-color: var(--bg-tertiary)"
               >
-                <h3 class="text-lg font-semibold mb-3">Cloud Backup (Beta)</h3>
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-full bg-accent-primary/10 flex items-center justify-center text-accent-primary">
+                    <i class="fa-solid fa-hard-drive"></i>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-gray-200 text-sm">Storage Usage</h3>
+                    <p id="storageSizeInfo" class="text-xs text-gray-400 mt-0.5 font-medium">Calculating...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Cloud Backup -->
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <h3 class="text-lg font-semibold mb-3">Cloud Backup</h3>
 
                 <!-- Logged Out State (Visible by default) -->
                 <div id="cloudBackupLoggedOut">
-                  <p class="text-sm text-gray-400 mb-3">
+                  <p class="text-sm text-gray-300 mb-3">
                     Sign in with Google to securely back up your data to the
                     cloud. This allows you to restore your data on any device.
                   </p>
@@ -663,10 +1075,11 @@
                 <div id="cloudBackupLoggedIn" class="hidden space-y-4">
                   <p class="text-sm text-gray-300">
                     Logged in as:
-                    <strong id="userEmail" class="text-accent-primary"
+                    <strong id="userEmail" class="text-accent-500"
                       >...</strong
                     >
                   </p>
+                  <p id="lastCloudBackupTime" class="text-xs text-gray-300 -mt-2">Last backed up: Fetching...</p>
                   <div class="flex flex-col sm:flex-row gap-3">
                     <button
                       id="backupToSupabaseBtn"
@@ -683,14 +1096,14 @@
                       Cloud
                     </button>
                   </div>
-                  <!-- UPDATED SIGN OUT BUTTON -->
+
                   <button id="googleLogoutBtn" class="btn btn-secondary w-full">
                     <i class="fas fa-sign-out-alt mr-1"></i> Sign Out
                   </button>
                 </div>
               </div>
 
-              <!-- Existing: Local Data Management Card -->
+              <!-- 3. Local Data Management -->
               <div
                 class="card !p-4"
                 style="background-color: var(--bg-tertiary)"
@@ -699,43 +1112,6 @@
                   Local Data Management
                 </h3>
 
-                <!-- UPDATED: Shortcut Target Radio Buttons -->
-                <div class="mb-4">
-                  <label class="block text-sm font-medium mb-2"
-                    >Keyboard/Dashboard Shortcut Does:</label
-                  >
-                  <div class="flex gap-x-4" id="shortcutTargetGroup">
-                    <label
-                      class="flex items-center text-sm text-gray-300 cursor-pointer"
-                    >
-                      <input
-                        type="radio"
-                        id="shortcutLocal"
-                        name="shortcutTarget"
-                        value="local"
-                        class="mr-2 text-accent-primary focus:ring-accent-primary"
-                        checked
-                      />
-                      Local File
-                    </label>
-                    <label
-                      class="flex items-center text-sm text-gray-400 cursor-pointer"
-                      id="shortcutCloudLabel"
-                    >
-                      <input
-                        type="radio"
-                        id="shortcutCloud"
-                        name="shortcutTarget"
-                        value="cloud"
-                        class="mr-2 text-accent-primary focus:ring-accent-primary"
-                        disabled
-                      />
-                      Cloud Backup
-                    </label>
-                  </div>
-                </div>
-
-                <!-- Existing Local Buttons (Text updated) -->
                 <div class="flex flex-col sm:flex-row gap-3">
                   <button id="exportDataBtn" class="btn btn-secondary flex-1">
                     <i class="fas fa-file-export mr-1"></i> Export Local File
@@ -747,9 +1123,9 @@
                       id="importDataInput"
                       accept=".json"
                       class="hidden"
-                  /></label>
+                  aria-label="Import Data Input" /></label>
                 </div>
-                <p class="text-xs text-gray-400 mt-2">
+                <p class="text-xs text-gray-300 mt-2">
                   Exports create a local backup file. Imports overwrite existing
                   data from a local file.
                 </p>
@@ -758,9 +1134,52 @@
                 </p>
               </div>
 
-              <!-- Existing: Danger Zone -->
-              <div class="card !bg-red-900/30 !border-red-700 !p-4">
-                <h3 class="text-lg font-semibold mb-3 text-red-400">
+              <!-- 4. Quick Action Shortcut -->
+              <div class="card !p-4" style="background-color: var(--bg-tertiary)">
+                <div class="flex flex-col mb-3">
+                  <h3 class="text-lg font-semibold">Quick Action Shortcut</h3>
+                  <p class="text-xs text-gray-400 mt-1">
+                    Sets the default target for Dashboard buttons & <kbd class="px-1.5 py-0.5 rounded bg-secondary border border-gray-700 font-mono text-gray-200">Ctrl+E</kbd> / <kbd class="px-1.5 py-0.5 rounded bg-secondary border border-gray-700 font-mono text-gray-200">Ctrl+I</kbd>
+                  </p>
+                </div>
+                
+                <div class="flex p-1 bg-secondary rounded-lg border border-gray-700" id="shortcutTargetGroup">
+                  <label class="flex-1 text-center cursor-pointer m-0">
+                    <input type="radio" id="shortcutLocal" name="shortcutTarget" value="local" class="peer sr-only" checked aria-label="Shortcut Local" />
+                    <div class="py-2 text-sm font-medium rounded-md text-gray-400 transition-all duration-200 peer-checked:bg-accent-primary peer-checked:text-white peer-checked:shadow-sm hover:text-gray-200 peer-checked:hover:text-white">
+                      <i class="fas fa-file-alt mr-1"></i> Local File
+                    </div>
+                  </label>
+                  
+                  <label class="flex-1 text-center cursor-pointer m-0 transition-opacity duration-200" id="shortcutCloudLabel">
+                    <input type="radio" id="shortcutCloud" name="shortcutTarget" value="cloud" class="peer sr-only" disabled aria-label="Shortcut Cloud" />
+                    <div class="py-2 text-sm font-medium rounded-md text-gray-400 transition-all duration-200 peer-checked:bg-accent-primary peer-checked:text-white peer-checked:shadow-sm hover:text-gray-200 peer-checked:hover:text-white">
+                      <i class="fas fa-cloud mr-1"></i> Cloud Backup
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 4. Backup Reminders -->
+              <div class="card !p-4" style="background-color: var(--bg-tertiary)">
+                <h3 class="text-lg font-semibold mb-3">Backup Reminders</h3>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <label for="settingsBackupReminderFreq" class="block text-sm font-medium text-gray-300">Local Export Reminder</label>
+                    <p class="text-xs text-gray-300 mt-1">Alerts you to save an offline backup file if you haven't exported one recently.</p>
+                  </div>
+                  <select id="settingsBackupReminderFreq" class="w-full sm:w-[220px] mt-2 sm:mt-0 flex-shrink-0" aria-label="Settings Backup Reminder Freq">
+                    <option value="default">Auto (Smart Schedule)</option>
+                    <option value="3">Every 3 Days</option>
+                    <option value="7">Weekly (7 Days)</option>
+                    <option value="30">Monthly (30 Days)</option>
+                    <option value="off">Off</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="card danger-zone-card !p-4">
+                <h3 class="text-lg font-semibold mb-3 danger-zone-text">
                   Danger Zone
                 </h3>
                 <button id="initiateDeleteBtn" class="btn btn-danger w-full">
@@ -770,10 +1189,10 @@
                   id="deleteConfirmationSection"
                   class="mt-4 hidden space-y-3"
                 >
-                  <p class="text-red-300 font-medium">
+                  <p class="danger-zone-text font-medium">
                     Are you absolutely sure? This action cannot be undone!
                   </p>
-                  <p class="text-sm text-red-400">
+                  <p class="text-sm danger-zone-subtext">
                     Slide the handle fully to the right to confirm deletion.
                   </p>
                   <div
@@ -799,10 +1218,226 @@
               </div>
             </div>
             <!-- END: UPDATED DATA MANAGEMENT PANEL -->
+
+            <!-- START: APPEARANCE PANEL -->
+            <div
+              id="settingsAppearancePanel"
+              class="settings-tab-panel space-y-6 hidden"
+            >
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <h3 class="text-lg font-semibold mb-3">Theme</h3>
+                <div class="flex gap-4">
+                  <button id="themeDarkBtn" class="flex-1 btn btn-secondary flex flex-col items-center justify-center p-4 rounded-lg border-2 border-transparent transition-colors">
+                    <i class="fas fa-moon text-2xl mb-2"></i>
+                    <span class="font-medium">Dark Mode</span>
+                  </button>
+                  <button id="themeLightBtn" class="flex-1 btn btn-secondary flex flex-col items-center justify-center p-4 rounded-lg border-2 border-transparent transition-colors">
+                    <i class="fas fa-sun text-2xl mb-2 text-yellow-500"></i>
+                    <span class="font-medium">Light Mode</span>
+                  </button>
+                </div>
+              </div>
+
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h3 class="text-base font-semibold">Show Calculator Button</h3>
+                    <p class="text-xs text-gray-300">Show calculator icon inside amount input fields to enable the Math Toolbar</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleMathToolbar" class="sr-only peer" checked aria-label="Toggle Math Toolbar">
+                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+              </div>
+              <div
+                class="card !p-4 space-y-4 bg-tertiary"
+              >
+                <h3 class="text-base font-semibold border-b border-gray-600 pb-2 mb-2">Customize Dashboard</h3>
+                
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-sm font-medium">Hide Cash Counter</h4>
+                    <p class="text-xs text-gray-300">Remove the Cash Counter from the dashboard</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleHideCashCounter" class="sr-only peer" aria-label="Toggle Hide Cash Counter">
+                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-sm font-medium">Hide Total Potential</h4>
+                    <p class="text-xs text-gray-300">Remove the Total Potential card (Auto-hides if 0 receivables)</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleHideTotalPotential" class="sr-only peer" aria-label="Toggle Hide Total Potential">
+                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-sm font-medium">Hide Debts & Receivables</h4>
+                    <p class="text-xs text-gray-300">Remove the I Owe / Owes Me sections from the dashboard</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleHideDebts" class="sr-only peer" aria-label="Toggle Hide Debts">
+                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-sm font-medium">Hide Installments</h4>
+                    <p class="text-xs text-gray-300">Remove the Installment Payments section from the dashboard</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleHideInstallments" class="sr-only peer" aria-label="Toggle Hide Installments">
+                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <!-- END: APPEARANCE PANEL -->
+
+            <!-- START: SECURITY PANEL -->
+            <div
+              id="settingsSecurityPanel"
+              class="settings-tab-panel space-y-6 hidden"
+            >
+              <div
+                class="card !p-4"
+                style="background-color: var(--bg-tertiary)"
+              >
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 class="text-lg font-semibold">App PIN Lock</h3>
+                    <p class="text-xs text-gray-300">Require a 4-digit PIN when opening the app</p>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleAppPin" class="sr-only peer" aria-label="Toggle App Pin">
+                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  </label>
+                </div>
+                
+                <div id="securityInlineSetup" class="hidden space-y-4 pt-4 border-t border-gray-600">
+                  <div class="space-y-3">
+                    <div>
+                      <label class="block text-sm font-medium mb-1">New 4-Digit PIN</label>
+                      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setupPinInput" class="w-full masked-pin" placeholder="e.g. 1234" aria-label="e.g. 1234">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Confirm PIN</label>
+                      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setupPinConfirm" class="w-full masked-pin" placeholder="Confirm 4 digits" aria-label="Confirm 4 digits">
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Security Question</label>
+                      <p class="text-xs text-gray-300 mb-2">Used if you forget your PIN.</p>
+                      <select id="setupSecuritySelect" class="w-full" aria-label="Setup Security Select">
+                        <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+                        <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+                        <option value="What city were you born in?">What city were you born in?</option>
+                        <option value="What was your childhood nickname?">What was your childhood nickname?</option>
+                        <option value="What is the name of your favorite teacher?">What is the name of your favorite teacher?</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Answer</label>
+                      <input type="text" id="setupSecurityAnswer" class="w-full" placeholder="Type your answer" autocomplete="off" aria-label="Type your answer">
+                    </div>
+                  </div>
+                  <div class="flex gap-2 justify-end">
+                    <button type="button" class="btn btn-secondary text-sm" id="btnCancelPinSetup">Cancel</button>
+                    <button type="button" class="btn btn-primary text-sm" id="btnSavePinSetup">Save PIN</button>
+                  </div>
+                </div>
+
+                <div id="securityManagementOptions" class="hidden space-y-3 pt-3 border-t border-gray-600">
+                  <button id="btnChangePin" class="btn btn-secondary w-full text-left flex justify-between items-center">
+                    <span>Change PIN</span>
+                    <i class="fas fa-chevron-right text-xs"></i>
+                  </button>
+                  <button id="btnChangeQuestion" class="btn btn-secondary w-full text-left flex justify-between items-center">
+                    <span>Change Security Question</span>
+                    <i class="fas fa-chevron-right text-xs"></i>
+                  </button>
+                  <button id="btnRemovePin" class="btn btn-danger w-full text-left flex justify-between items-center">
+                    <span>Remove PIN & Security Settings</span>
+                    <i class="fas fa-trash text-xs"></i>
+                  </button>
+                </div>
+                
+                <div id="securityInlineChange" class="hidden space-y-4 pt-4 border-t border-gray-600">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Current PIN</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="changePinCurrent" class="w-full masked-pin" aria-label="Change Pin Current">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">New 4-Digit PIN</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="changePinNew" class="w-full masked-pin" aria-label="Change Pin New">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Confirm New PIN</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="changePinConfirm" class="w-full masked-pin" aria-label="Change Pin Confirm">
+                  </div>
+                  <div class="flex gap-2 justify-end">
+                    <button type="button" class="btn btn-secondary text-sm" id="btnCancelPinChange">Cancel</button>
+                    <button type="button" class="btn btn-primary text-sm" id="btnSavePinChange">Update PIN</button>
+                  </div>
+                </div>
+
+                <div id="securityInlineChangeQuestion" class="hidden space-y-4 pt-4 border-t border-gray-600">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Current PIN</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="changeQuestionPinCurrent" class="w-full masked-pin" aria-label="Change Question Pin Current">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">New Security Question</label>
+                    <select id="changeQuestionSelect" class="w-full" aria-label="Change Question Select">
+                      <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+                      <option value="What is your mother's maiden name?">What is your mother's maiden name?</option>
+                      <option value="What city were you born in?">What city were you born in?</option>
+                      <option value="What was your childhood nickname?">What was your childhood nickname?</option>
+                      <option value="What is the name of your favorite teacher?">What is the name of your favorite teacher?</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">New Answer</label>
+                    <input type="text" id="changeQuestionAnswer" class="w-full" placeholder="Type your answer" autocomplete="off" aria-label="Type your answer">
+                  </div>
+                  <div class="flex gap-2 justify-end">
+                    <button type="button" class="btn btn-secondary text-sm" id="btnCancelQuestionChange">Cancel</button>
+                    <button type="button" class="btn btn-primary text-sm" id="btnSaveQuestionChange">Update Question</button>
+                  </div>
+                </div>
+                
+                <div id="securityInlineRemove" class="hidden space-y-4 pt-4 border-t border-gray-600">
+                  <p class="text-sm text-gray-300">Enter your current PIN to completely remove security settings.</p>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Current PIN</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="removePinCurrent" class="w-full masked-pin" aria-label="Remove Pin Current">
+                  </div>
+                  <div class="flex gap-2 justify-end">
+                    <button type="button" class="btn btn-secondary text-sm" id="btnCancelPinRemove">Cancel</button>
+                    <button type="button" class="btn btn-danger text-sm" id="btnConfirmPinRemove">Remove PIN</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- END: SECURITY PANEL -->
+
           </div>
           <div
             id="settingsAboutSection"
-            class="mt-8 pt-6 border-t border-gray-600 text-xs text-gray-400 space-y-2 text-center"
+            class="mt-8 pt-6 border-t border-gray-600 text-xs text-gray-300 space-y-2 text-center"
           >
             <p>Made by Aanjelo Salgado using Gemini AI.</p>
             <p>
@@ -828,11 +1463,11 @@
               <p>
                 This was made and refined using AI. All data are handled
                 locally. This cannot be automatically synced to a different
-                device.
+                device, unless cloud backups are enabled.
               </p>
               <p>
-                Make sure to back up the data from time to time. You will get an
-                automatic reminder every Wednesday and Sunday.
+                Make sure to back up the data from time to time. You will receive
+                automatic reminders based on your chosen interval in the Data settings.
               </p>
             </div>
             <p class="font-semibold mt-2">Earn Well And Spend Responsibly!</p>
@@ -841,11 +1476,11 @@
                 src="img/AanjeloNoText.svg"
                 alt="Aanjelo Salgado Logo"
                 id="personal-logo"
-                class="mb-2"
+                class="mb-2 theme-logo-type"
                 onerror="this.onerror=null; this.src='https://placehold.co/100x40/e67e26/white?text=AS&font=satoshi';"
               />
               <hr class="w-1/4 my-2 border-gray-600" />
-              <p id="appVersionSettings" class="text-gray-500 text-xs"></p>
+              <p id="appVersionSettings" class="text-gray-400 text-xs"></p>
               <div class="max-w-2xl mx-auto">
                 <p class="font-semibold text-gray-300 mt-2">
                   For optimal performance and to prevent data loss due to
@@ -856,15 +1491,12 @@
                   the new version.
                 </p>
               </div>
-              <p id="storageSizeInfo" class="text-gray-500 text-xs mt-1">
-                Approx. Storage Used: Calculating...
-              </p>
             </div>
           </div>
         </div>
       </div>
 
-      <div id="initialSetupModal" class="modal" style="z-index: 60">
+      <div id="initialSetupModal" class="modal z-[60]">
         <div class="modal-content max-w-2xl">
           <h2
             class="text-2xl font-semibold mb-2 text-center accent-text flex justify-center items-center"
@@ -873,25 +1505,44 @@
             <img
               src="img/LogoType.svg"
               alt="Kaasi Text Logo"
-              class="h-8 ml-2 inline-block"
+              class="h-8 ml-2 inline-block theme-logo-type"
               onerror="this.onerror=null; this.src='https://placehold.co/120x30/e67e26/white?text=Kaasi&font=satoshi';"
             />
           </h2>
-          <p class="text-sm text-gray-400 mb-6 text-center">
+          <p class="text-sm text-gray-300 mb-6 text-center">
             Let's get your expense tracker set up.
           </p>
 
+          <div class="mb-6">
+            <div class="card !p-4 border-2 border-dashed border-gray-600 bg-[var(--bg-tertiary)] flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div class="text-center sm:text-left flex-grow">
+                <h3 class="text-sm font-semibold text-[var(--text-primary)]">Already have data?</h3>
+                <p class="text-xs text-gray-300 mt-1">Sign in or import a backup file to instantly restore your data and skip this setup.</p>
+              </div>
+              <div class="flex flex-row gap-2 w-full sm:w-auto shrink-0 justify-center">
+                <button type="button" id="setupCloudLoginBtn" class="btn btn-secondary text-sm flex-1 sm:flex-none justify-center m-0 whitespace-nowrap">
+                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" class="w-4 h-4 mr-2 inline-block" />
+                  Cloud Restore
+                </button>
+                <label class="btn btn-secondary text-sm cursor-pointer flex-1 sm:flex-none justify-center m-0 whitespace-nowrap">
+                  <i class="fas fa-file-import mr-2"></i>Local File
+                  <input type="file" id="setupImportInput" accept=".json" class="hidden" aria-label="Setup Import Input" />
+                </label>
+              </div>
+            </div>
+          </div>
+
           <form id="initialSetupForm" class="space-y-6">
-            <div class="card !p-4" style="background-color: var(--bg-tertiary)">
+            <div class="card !p-4 bg-tertiary">
               <h3 class="text-lg font-semibold mb-3">1. Account Setup</h3>
-              <p class="text-xs text-gray-400 mb-3">
+              <p class="text-xs text-gray-300 mb-3">
                 Set initial balances. You can rename bank accounts and toggle
                 their visibility. "Cash" is fixed. Leave balance blank or 0 if
                 not applicable.
               </p>
               <div id="setupAccountBalances" class="space-y-3"></div>
             </div>
-            <div class="card !p-4" style="background-color: var(--bg-tertiary)">
+            <div class="card !p-4 bg-tertiary">
               <h3 class="text-lg font-semibold mb-3">2. Credit Card Setup</h3>
               <div class="flex items-center justify-between mb-3">
                 <label
@@ -906,9 +1557,9 @@
                     name="setupEnableCc"
                     class="sr-only peer"
                     checked
-                  />
+                  aria-label="Setup Enable Cc" />
                   <div
-                    class="w-11 h-6 bg-gray-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-accent-primary/50 rounded-full peer peer-checked:bg-accent-primary peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
+                    class="w-11 h-6 bg-gray-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-accent-500/50 rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
                   ></div>
                 </label>
               </div>
@@ -916,20 +1567,24 @@
                 <label for="setupCcLimit" class="block text-sm font-medium mb-1"
                   >Credit Card Limit (LKR)</label
                 >
+                <div class="relative flex items-center w-full">
                 <input
-                  type="number"
+                  type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8 text-sm"
                   id="setupCcLimit"
                   name="setupCcLimit"
                   step="0.01"
                   min="0"
                   placeholder="e.g., 100000"
-                  class="!py-1.5 !px-2 text-sm"
-                />
+                aria-label="e.g., 100000" />
+                <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                  <i class="fas fa-calculator"></i>
+                </button>
+              </div>
               </div>
             </div>
-            <div class="card !p-4" style="background-color: var(--bg-tertiary)">
+            <div class="card !p-4 bg-tertiary">
               <h3 class="text-lg font-semibold mb-3">3. Expense Categories</h3>
-              <p class="text-xs text-gray-400 mb-3">
+              <p class="text-xs text-gray-300 mb-3">
                 Review and customize your starting categories. You can manage
                 these later in Settings.
               </p>
@@ -939,8 +1594,8 @@
                   type="text"
                   id="setupNewCategoryName"
                   placeholder="Add custom category"
-                  class="flex-grow !py-1.5 !px-2 text-sm"
-                />
+                  class="flex-grow text-sm"
+                aria-label="Add custom category" />
                 <button
                   type="button"
                   id="setupAddCategoryBtn"
@@ -960,22 +1615,9 @@
             </div>
           </form>
 
-          <div class="mt-6 pt-4 border-t border-gray-600 text-center">
-            <p class="text-sm text-gray-400 mb-3">
-              Alternatively, if you have a backup file:
-            </p>
-            <label class="btn btn-secondary cursor-pointer">
-              <i class="fas fa-file-import mr-2"></i> Import Existing Data
-              <input
-                type="file"
-                id="setupImportInput"
-                accept=".json"
-                class="hidden"
-              />
-            </label>
-          </div>
+
           <div
-            class="mt-8 pt-6 border-t border-gray-600 text-xs text-gray-400 space-y-2 text-center"
+            class="mt-8 pt-6 border-t border-gray-600 text-xs text-gray-300 space-y-2 text-center"
           >
             <p>Made by Aanjelo Salgado using Gemini AI.</p>
             <p>
@@ -1001,11 +1643,11 @@
               <p>
                 This was made and refined using AI. All data are handled
                 locally. This cannot be automatically synced to a different
-                device.
+                device, unless cloud backups are enabled.
               </p>
               <p>
-                Make sure to back up the data from time to time. You will get an
-                automatic reminder every Wednesday and Sunday.
+                Make sure to back up the data from time to time. You will receive
+                automatic reminders based on your chosen interval in the Data settings.
               </p>
             </div>
             <p class="font-semibold mt-2">Earn Well And Spend Responsibly!</p>
@@ -1013,11 +1655,11 @@
               <img
                 src="img/AanjeloNoText.svg"
                 alt="Aanjelo Salgado Logo"
-                class="h-8 mb-2"
+                class="h-8 mb-2 theme-logo-type"
                 onerror="this.onerror=null; this.src='https://placehold.co/80x32/e67e26/white?text=AS&font=satoshi';"
               />
               <hr class="w-1/4 my-2 border-gray-600" />
-              <p id="appVersionSetup" class="text-gray-500 text-xs"></p>
+              <p id="appVersionSetup" class="text-gray-400 text-xs"></p>
               <div class="max-w-2xl mx-auto">
                 <p class="font-semibold text-gray-300 mt-2">
                   For optimal performance and to prevent data loss due to
@@ -1033,9 +1675,9 @@
         </div>
       </div>
 
-      <div id="formModal" class="modal">
+      <div id="formModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-lg">
-          <span class="modal-close" onclick="closeModal('formModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('formModal')"
             >&times;</span
           >
           <h2 id="formModalTitle" class="text-xl font-semibold mb-4">
@@ -1045,158 +1687,88 @@
         </div>
       </div>
 
-      <div id="transferMoneyModal" class="modal">
-        <div class="modal-content max-w-lg">
-          <span class="modal-close" onclick="closeModal('transferMoneyModal')"
-            >&times;</span
-          >
-          <h2
-            class="text-2xl font-semibold mb-6 text-center flex items-center justify-center"
-          >
-            <i class="fas fa-exchange-alt mr-3 text-accent-primary"></i>Transfer
-            Money
-          </h2>
-          <form id="transferModalForm" class="space-y-4">
-            <div>
-              <label
-                for="modalTransferAmount"
-                class="block text-sm font-medium mb-1"
-                >Amount (LKR)</label
-              ><input
-                type="number"
-                id="modalTransferAmount"
-                name="transferAmount"
-                step="0.01"
-                min="0"
-                placeholder="Amount to transfer"
-                required
-              />
-            </div>
-            <div>
-              <label
-                for="modalTransferFrom"
-                class="block text-sm font-medium mb-1"
-                >From Account</label
-              ><select
-                id="modalTransferFrom"
-                name="transferFrom"
-                required
-              ></select>
-            </div>
-            <div>
-              <label
-                for="modalTransferTo"
-                class="block text-sm font-medium mb-1"
-                >To Account</label
-              ><select id="modalTransferTo" name="transferTo" required></select>
-            </div>
-            <p id="modalTransferError" class="text-red-500 text-sm mt-1 hidden">
-              From and To accounts cannot be the same.
-            </p>
-            <button type="submit" class="btn btn-primary w-full !mt-6">
-              <i class="fas fa-check-circle mr-2"></i> Confirm Transfer
-            </button>
-          </form>
-        </div>
-      </div>
-
-      <div id="ccHistoryModal" class="modal">
+      <div id="ccHistoryModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-4xl">
-          <span class="modal-close" onclick="closeModal('ccHistoryModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('ccHistoryModal')"
             >&times;</span
           >
-          <h2 class="text-2xl font-semibold mb-4">
+          <h2 class="text-2xl font-semibold mb-4 pr-8">
             Credit Card History & Payments
           </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 text-sm">
-            <div class="bg-gray-700 p-3 rounded">
-              <p class="text-gray-400">Limit:</p>
-              <p id="ccHistoryLimit" class="font-semibold">LKR 0.00</p>
+          
+          <!-- Summary Cards -->
+          <div class="monthly-view-summary-grid grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="monthly-view-summary-card">
+              <p class="text-sm text-gray-300 mb-1">Limit</p>
+              <p id="ccHistoryLimit" class="text-xl font-semibold tabular-nums">LKR 0.00</p>
             </div>
-            <div class="bg-gray-700 p-3 rounded">
-              <p class="text-gray-400">Spent (Unpaid):</p>
-              <p id="ccHistorySpentUnpaid" class="font-semibold text-expense">
-                LKR 0.00
-              </p>
+            <div class="monthly-view-summary-card">
+              <p class="text-sm text-gray-300 mb-1">Spent (Unpaid)</p>
+              <p id="ccHistorySpentUnpaid" class="text-xl font-semibold text-expense tabular-nums">LKR 0.00</p>
             </div>
-            <div class="bg-gray-700 p-3 rounded">
-              <p class="text-gray-400">Available:</p>
-              <p id="ccHistoryAvailable" class="font-semibold accent-text">
-                LKR 0.00
-              </p>
+            <div class="monthly-view-summary-card">
+              <p class="text-sm text-gray-300 mb-1">Available</p>
+              <p id="ccHistoryAvailable" class="text-xl font-semibold accent-text tabular-nums">LKR 0.00</p>
             </div>
           </div>
-          <!-- NEW: Control Bar -->
-          <div
-            class="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-600 pb-3 gap-3"
-          >
-            <div class="flex items-center gap-x-2">
-              <label
-                for="ccYearSelector"
-                class="text-sm font-medium flex-shrink-0"
-                >Year:</label
-              >
-              <select
-                id="ccYearSelector"
-                class="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm"
-              ></select>
+
+          <!-- Navigation (Year & Month Tabs) -->
+          <div id="ccHistoryNavigationRow" class="flex flex-col sm:flex-row justify-between items-center mb-4 border-b border-gray-600 pb-2 gap-2">
+            <div class="flex items-center gap-x-2 w-full sm:w-auto justify-between sm:justify-start">
+              <div class="flex-shrink-0 flex items-center gap-x-2">
+                <select id="ccYearSelector" class="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm outline-none hover:bg-gray-600 transition-colors cursor-pointer" aria-label="Cc Year Selector"></select>
+              </div>
             </div>
-            <div id="ccHistoryFilterControls" class="grid grid-cols-3 gap-2">
-              <button data-filter="all" class="btn btn-sm btn-secondary">
-                All
-              </button>
-              <button
-                data-filter="unpaid"
-                class="btn btn-sm btn-secondary active"
-              >
-                Unpaid
-              </button>
-              <button data-filter="paid" class="btn btn-sm btn-secondary">
-                Paid
-              </button>
+            <div id="ccMonthTabs" class="flex overflow-x-auto whitespace-nowrap gap-x-2 hide-scrollbar edge-fade py-1 px-4 max-w-full"></div>
+          </div>
+
+          <!-- Search & Filters -->
+          <div class="my-4 flex flex-col sm:flex-row items-center gap-2">
+            <div class="flex-grow w-full flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div class="flex-grow w-full flex items-center gap-x-2">
+                <input type="search" id="ccHistorySearchInput" name="ccHistorySearch" placeholder="Search description or amount..." class="flex-grow bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm outline-none text-white focus:border-accent-500 transition-colors" aria-label="Search description or amount..." />
+                <button id="clearCcHistorySearchBtn" class="btn-icon-clear-search hidden flex-shrink-0" aria-label="Clear search" data-tooltip="Clear Search">
+                  <i class="fas fa-times text-gray-300 hover:text-white transition-colors"></i>
+                </button>
+              </div>
+            </div>
+            <div id="ccHistoryFilterControls" class="flex w-full sm:w-auto gap-2 flex-shrink-0">
+              <button data-filter="all" class="btn btn-secondary flex-1 sm:flex-none">All</button>
+              <button data-filter="unpaid" class="btn btn-secondary active flex-1 sm:flex-none">Unpaid</button>
+              <button data-filter="paid" class="btn btn-secondary flex-1 sm:flex-none">Settled</button>
             </div>
           </div>
-          <!-- NEW: Search Bar -->
-          <div class="my-4 flex items-center gap-x-2">
-            <input
-              type="search"
-              id="ccHistorySearchInput"
-              name="ccHistorySearch"
-              placeholder="Search by description or amount..."
-              class="flex-grow"
-            />
-            <button
-              id="clearCcHistorySearchBtn"
-              class="btn-icon-clear-search hidden flex-shrink-0"
-              aria-label="Clear search"
-              data-tooltip="Clear Search"
-            >
-              <i class="fas fa-times"></i>
+
+          <!-- Flat List Container -->
+          <div id="ccHistoryListContainer" class="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar pb-2 transition-all duration-300">
+            <!-- Transactions injected here via JS -->
+          </div>
+          
+          <!-- Floating Action Bar for Bulk Payments -->
+          <div id="ccBulkPaymentBar" class="absolute bottom-4 left-4 right-4 bg-tertiary border border-theme rounded-lg p-3 shadow-lg flex justify-between items-center transition-transform transform translate-y-24 opacity-0 pointer-events-none z-10">
+            <span id="ccBulkPaymentText" class="font-medium">0 Selected</span>
+            <button id="ccBulkPaymentBtn" class="btn btn-primary btn-sm" onclick="openBulkPayCcItemForm()">
+              <i class="fas fa-credit-card mr-1"></i> Pay Selected
             </button>
           </div>
-          <!-- NEW: Container for grouped list -->
-          <div
-            id="ccHistoryListContainer"
-            class="mt-4 max-h-[50vh] overflow-y-auto pr-2"
-          ></div>
         </div>
       </div>
 
-      <div id="cashCounterModal" class="modal">
+      <div id="cashCounterModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-md">
-          <span class="modal-close" onclick="closeModal('cashCounterModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('cashCounterModal')"
             >&times;</span
           >
           <h2 class="text-2xl font-semibold mb-4 text-center">Cash Counter</h2>
           <form id="cashCounterForm">
             <div class="grid grid-cols-3 gap-x-2 gap-y-3 items-center mb-4">
-              <span class="font-semibold text-sm text-gray-400"
+              <span class="font-semibold text-sm text-gray-300"
                 >Denomination</span
               >
-              <span class="font-semibold text-sm text-gray-400 text-center"
+              <span class="font-semibold text-sm text-gray-300 text-center"
                 >Count</span
               >
-              <span class="font-semibold text-sm text-gray-400 text-right"
+              <span class="font-semibold text-sm text-gray-300 text-right"
                 >Total</span
               >
             </div>
@@ -1214,65 +1786,119 @@
         </div>
       </div>
 
-      <div id="debtsViewModal" class="modal">
+      <div id="debtsViewModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-2xl">
-          <span class="modal-close" onclick="closeModal('debtsViewModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('debtsViewModal')"
             >&times;</span
           >
-          <h2 class="text-2xl font-semibold mb-4">All Debts (I Owe)</h2>
+          <h2 class="text-2xl font-semibold mb-4 pr-8">All Debts (I Owe)</h2>
           <div
             id="debtModalListContainer"
             class="space-y-3 max-h-[70vh] overflow-y-auto pr-2"
           >
-            <p class="text-gray-400 text-sm">Loading debts...</p>
+            <p class="text-gray-300 text-sm">Loading debts...</p>
           </div>
         </div>
       </div>
 
-      <div id="receivablesViewModal" class="modal">
+      <div id="receivablesViewModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-2xl">
-          <span class="modal-close" onclick="closeModal('receivablesViewModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('receivablesViewModal')"
             >&times;</span
           >
-          <h2 class="text-2xl font-semibold mb-4">All Receivables (Owes Me)</h2>
+          <h2 class="text-2xl font-semibold mb-4 pr-8">All Receivables (Owes Me)</h2>
           <div
             id="receivableModalListContainer"
             class="space-y-3 max-h-[70vh] overflow-y-auto pr-2"
           >
-            <p class="text-gray-400 text-sm">Loading receivables...</p>
+            <p class="text-gray-300 text-sm">Loading receivables...</p>
           </div>
         </div>
       </div>
 
-      <div id="shortcutsHelpModal" class="modal" style="z-index: 75">
+      <div id="shortcutsHelpModal" class="modal z-[75]">
         <div class="modal-content max-w-lg">
-          <span class="modal-close" onclick="closeModal('shortcutsHelpModal')"
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('shortcutsHelpModal')"
             >&times;</span
           >
           <h2 class="text-2xl font-semibold mb-4 text-center">
-            <i class="fas fa-keyboard mr-2 text-accent-primary"></i>Keyboard
+            <i class="fas fa-keyboard mr-2 text-accent-500"></i>Keyboard
             Shortcuts
           </h2>
-          <div class="mb-4 text-xs text-gray-400 text-center">
+          <div class="mb-4 text-xs text-gray-300 text-center">
             Note: Shortcuts generally do not work when typing in input fields.
           </div>
           <ul
             id="shortcutsList"
             class="space-y-1 text-sm max-h-[60vh] overflow-y-auto pr-2"
           >
-            <li class="text-center text-gray-500">Loading shortcuts...</li>
+            <li class="text-center text-gray-400">Loading shortcuts...</li>
           </ul>
         </div>
       </div>
 
-      <div id="confirmationModal" class="modal" style="z-index: 70">
+      <div id="editBudgetModal" class="modal z-[60]" role="dialog" aria-modal="true">
+        <div class="modal-content max-w-md">
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('editBudgetModal')">&times;</span>
+          <h2 class="text-2xl font-semibold mb-4 text-center">Edit Budget</h2>
+          <form id="editBudgetForm" class="space-y-4">
+            <input type="hidden" id="editBudgetId" />
+            <div>
+              <label class="block text-sm font-medium mb-1">Select Categories</label>
+              <div id="editBudgetCategoriesContainer" class="max-h-60 overflow-y-auto space-y-1 bg-black/20 p-2 rounded-md border border-gray-600">
+                <!-- Checkboxes populated via JS -->
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Budget Name <span class="text-xs text-gray-300 font-normal">(Optional if selecting a single category)</span></label>
+              <input type="text" id="editBudgetName" placeholder="e.g. Groceries" class="w-full text-sm" aria-label="e.g. Groceries">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Monthly Limit (LKR)</label>
+              <div class="relative flex items-center w-full">
+                <input type="text" inputmode="decimal" autocomplete="off" id="editBudgetLimit" class="calc-amount w-full pr-8 text-sm" placeholder="e.g. 15000.00" required step="0.01" min="0" aria-label="e.g. 15000.00">
+                <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
+                  <i class="fas fa-calculator"></i>
+                </button>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm w-full">Save Changes</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="transactionDetailModal" class="modal z-[65]">
+        <div class="modal-content max-w-md">
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('transactionDetailModal')">&times;</span>
+          <h2 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 flex items-center gap-2 force-word-wrap">
+            <i class="fas fa-receipt text-accent-500"></i> Transaction Details
+          </h2>
+          <div id="transactionDetailContent" class="space-y-4 text-sm text-gray-200">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <div id="ccTransactionDetailModal" class="modal z-[65]">
+        <div class="modal-content max-w-md">
+          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('ccTransactionDetailModal')">&times;</span>
+          <h2 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2 flex items-center gap-2 force-word-wrap">
+            <i class="fas fa-credit-card text-accent-500"></i> CC Item Details
+          </h2>
+          <div id="ccTransactionDetailContent" class="space-y-4 text-sm text-gray-200">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <div id="confirmationModal" class="modal z-[70]">
         <div class="modal-content max-w-sm text-center">
           <h2 id="confirmationModalTitle" class="text-xl font-semibold mb-4">
             Confirmation
           </h2>
-          <p id="confirmationMessage" class="text-gray-300 mb-6">
+          <div id="confirmationMessage" class="text-gray-300 mb-6">
             Are you sure?
-          </p>
+          </div>
           <div class="flex justify-center gap-4">
             <button id="confirmModalCancelBtn" class="btn btn-secondary">
               Cancel
@@ -1286,13 +1912,13 @@
 
       <div
         id="notificationArea"
-        class="fixed bottom-5 right-5 z-[60] space-y-2 max-w-xs"
+        class="fixed bottom-5 right-5 z-[999999] space-y-2 max-w-xs"
       ></div>
     </div>
 
     <!-- The main change is adding mt-16 to the footer and max-w-7xl to the inner div -->
     <footer
-      class="mt-16 relative z-10 border-t border-gray-800/50 bg-[#121212]"
+      class="mt-16 relative z-10 border-t footer-border footer-bg"
     >
       <div
         class="container mx-auto max-w-7xl px-6 py-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-6"
@@ -1304,12 +1930,13 @@
             class="h-6"
             onerror="this.onerror=null; this.src='https://placehold.co/24x24/1a1a1a/e67e26?text=K&font=satoshi';"
           />
-          <span class="text-gray-500 text-sm"
-            >&copy; 2025 Kaasi by Aanjelo Salgado.</span
+          <span class="text-gray-400 text-sm"
+            >&copy; <script>document.write(new Date().getFullYear())</script> Kaasi by Aanjelo Salgado.</span
           >
         </div>
-        <div class="flex items-center gap-6 text-gray-400 text-sm">
-          <!-- Removed Tailwind hover and transition classes -->
+        <div class="flex items-center gap-6 text-gray-300 text-sm">
+
+          <button id="pwaInstallBtn" class="accent-text font-medium hidden" data-analytics="pwa_install_click"><i class="fas fa-download mr-1"></i> Install App</button>
           <button id="footerDonateBtn">Donate</button>
           <a href="https://kaasi.com.lk" target="_blank">Main Website</a>
         </div>
@@ -1319,30 +1946,25 @@
     <!-- NEW DONATE MODAL -->
     <div
       id="donateModal"
-      class="modal"
+      class="modal" role="dialog" aria-modal="true"
       tabindex="-1"
-      aria-modal="true"
-      role="dialog"
     >
       <div class="modal-content max-w-xl">
         <span
-          class="modal-close"
+          class="modal-close" aria-label="Close modal" role="button" tabindex="0"
           id="closeDonateModal"
-          tabindex="0"
-          role="button"
-          aria-label="Close"
           >&times;</span
         >
         <h2 class="text-xl font-semibold mb-3 accent-text">
           Thank You for Supporting Kaasi!
         </h2>
-        <p class="mb-2 text-secondary" style="font-size: 1.08rem">
+        <p class="mb-2 text-secondary text-[1.08rem]">
           Your donation helps keep Kaasi free and in active development. Since
           the AI subscriptions used for development are quite expensive, and I
           want to keep Kaasi free for everyone, your kind support is greatly
           appreciated!
         </p>
-        <div class="donate-bank-details-vertical" style="margin-top: 1.6rem">
+        <div class="donate-bank-details-vertical mt-[1.6rem]">
           <div class="donate-bank-block">
             <div class="bank-title accent-text">HNB (Negombo)</div>
             <div class="bank-pair">
@@ -1380,12 +2002,68 @@
             </div>
           </div>
         </div>
-        <p class="text-sm text-secondary" style="margin-top: 1.3rem">
+        <p class="text-sm text-secondary mt-[1.3rem]">
           Every contribution makes a difference. ❤️
         </p>
       </div>
     </div>
 
-    <script src="script.js" defer></script>
+    <!-- CLOUD SESSION EXPIRED MODAL -->
+    <div
+      id="cloudSessionExpiredModal"
+      class="modal z-[9999]"
+      tabindex="-1"
+      aria-modal="true"
+      role="dialog"
+    >
+      <div class="modal-content max-w-xl">
+        <h2 class="text-xl font-bold mb-2 accent-text text-center">
+          <i class="fas fa-cloud-slash mr-2"></i> Cloud Sync Disconnected
+        </h2>
+        <p class="text-sm text-gray-300 mb-6 text-center">
+          Your cloud backup session has expired. Please select an option below to ensure your financial data is safe.
+        </p>
+
+        <div class="space-y-4">
+          <!-- Option A: Google Login Card -->
+          <div class="card !p-4 border border-gray-700 bg-[var(--bg-tertiary)] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-center sm:text-left flex-grow">
+              <h3 class="text-sm font-semibold text-[var(--text-primary)]">Resume Cloud Backups</h3>
+              <p class="text-xs text-gray-300 mt-1">Sign in with Google to reconnect and continue backing up your transactions to the cloud.</p>
+            </div>
+            <button type="button" id="sessionExpiredGoogleLoginBtn" class="btn btn-primary text-sm w-full sm:w-[140px] justify-center m-0 whitespace-nowrap">
+              <i class="fab fa-google mr-2"></i> Sign In
+            </button>
+          </div>
+
+          <!-- Option B: Local Mode Card -->
+          <div class="card !p-4 border border-gray-700 bg-[var(--bg-tertiary)] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-center sm:text-left flex-grow">
+              <h3 class="text-sm font-semibold text-[var(--text-primary)]">Switch to Local Mode</h3>
+              <p class="text-xs text-gray-300 mt-1">Stop syncing with the cloud. Your transactions will only be saved locally on this device.</p>
+            </div>
+            <button type="button" id="sessionExpiredLocalBtn" class="btn btn-secondary text-sm w-full sm:w-[140px] justify-center m-0 whitespace-nowrap">
+              <i class="fas fa-hdd mr-2"></i> Local Mode
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <script src="js/globals.js" defer></script>
+    <script src="js/animations.js" defer></script>
+    <script src="js/data-sync.js" defer></script>
+    <script src="js/math-tool.js" defer></script>
+    <script src="js/settings.js" defer></script>
+    <script src="js/charts.js" defer></script>
+    <script src="js/ui.js" defer></script>
+    <script src="js/features.js" defer></script>
+    <script src="js/security.js" defer></script>
+    <script src="js/app.js" defer></script>
   </body>
 </html>
+
+
+
+
