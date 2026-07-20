@@ -1080,10 +1080,10 @@ function renderBudgetsSettingsList() {
     div.innerHTML = `
       <div class="flex-grow min-w-0">
         <div class="flex items-center justify-between sm:justify-start gap-2 mb-1">
-          <h4 class="font-medium text-gray-200 truncate">${budget.name}</h4>
+          <h4 class="font-medium text-gray-200 truncate">${escapeHTML(budget.name)}</h4>
           <span class="text-sm font-semibold text-accent-500 whitespace-nowrap">${formatCurrency(budget.limit)}</span>
         </div>
-        <p class="text-xs text-gray-400 line-clamp-2" data-tooltip="${catList}">Categories: ${catList || 'None'}</p>
+        <p class="text-xs text-gray-400 line-clamp-2" data-tooltip="${escapeHTML(catList)}">Categories: ${escapeHTML(catList) || 'None'}</p>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
         <button type="button" class="btn btn-icon btn-sm" onclick="openEditBudgetModal('${budget.id}')" data-tooltip="Edit Budget">
