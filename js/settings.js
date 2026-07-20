@@ -533,7 +533,7 @@ function renderCategorySettingsList() {
     li.style.borderColor = "var(--border-color)";
     li.style.borderWidth = "1px";
 
-    const inputElementHTML = `<input type="text" value="${cat}" data-original-name="${cat}" class="bg-transparent border-none focus:ring-0 focus:outline-none p-0 flex-grow mr-2 text-sm">`;
+    const inputElementHTML = `<input type="text" value="${escapeHTML(cat)}" data-original-name="${escapeHTML(cat)}" class="bg-transparent border-none focus:ring-0 focus:outline-none p-0 flex-grow mr-2 text-sm">`;
 
     const buttonsDiv = document.createElement("div");
     buttonsDiv.className = "flex items-center gap-x-3";
@@ -542,10 +542,10 @@ function renderCategorySettingsList() {
     const eyeIconClass = isHidden ? "fa-eye-slash text-gray-500" : "fa-eye text-accent-primary";
     const eyeTooltip = isHidden ? "Hidden Category (Click to make visible)" : "Visible Category (Click to hide)";
     
-    const toggleBtn = `<button class="focus:outline-none hover:scale-110 transition-transform flex items-center justify-center w-6 h-6" onclick="toggleHiddenCategory('${cat}')" data-tooltip="${eyeTooltip}"><i class="fas ${eyeIconClass}"></i></button>`;
+    const toggleBtn = `<button class="focus:outline-none hover:scale-110 transition-transform flex items-center justify-center w-6 h-6" onclick="toggleHiddenCategory(this.getAttribute('data-cat'))" data-cat="${escapeHTML(cat)}" data-tooltip="${escapeHTML(eyeTooltip)}"><i class="fas ${eyeIconClass}"></i></button>`;
 
     const saveButtonHTML = `<button class="btn btn-primary btn-sm !py-1 !px-3 text-xs font-medium" onclick="renameCategory(this)">Save</button>`;
-    const deleteButtonHTML = `<button class="text-gray-400 hover:text-expense focus:outline-none w-6 h-6 flex items-center justify-center" onclick="deleteCategory('${cat}')" data-tooltip="Delete Category"><i class="fas fa-times"></i></button>`;
+    const deleteButtonHTML = `<button class="text-gray-400 hover:text-expense focus:outline-none w-6 h-6 flex items-center justify-center" onclick="deleteCategory(this.getAttribute('data-cat'))" data-cat="${escapeHTML(cat)}" data-tooltip="Delete Category"><i class="fas fa-times"></i></button>`;
 
     li.innerHTML = inputElementHTML;
     buttonsDiv.innerHTML = toggleBtn + saveButtonHTML + deleteButtonHTML;
@@ -1009,11 +1009,11 @@ function buildBudgetCategoryCheckboxes(containerId, selectedCategories = [], cur
     }
     
     label.innerHTML = `
-      <input type="checkbox" value="${cat}" class="budget-category-checkbox peer sr-only" ${isChecked ? "checked" : ""} ${isUsed ? "disabled" : ""}>
+      <input type="checkbox" value="${escapeHTML(cat)}" class="budget-category-checkbox peer sr-only" ${isChecked ? "checked" : ""} ${isUsed ? "disabled" : ""}>
       <div class="w-4 h-4 rounded border ${isUsed ? "border-gray-700 bg-gray-800" : "border-gray-500 peer-checked:border-accent-500"} flex items-center justify-center transition-colors text-transparent peer-checked:text-accent-500">
         <svg class="w-3 h-3 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
       </div>
-      <span class="truncate flex-grow">${cat}</span>
+      <span class="truncate flex-grow">${escapeHTML(cat)}</span>
       ${isUsed ? `<span class="text-[10px] bg-gray-850 text-gray-400 px-1.5 py-0.5 rounded uppercase font-semibold tracking-wider">Used</span>` : ""}
     `;
     container.appendChild(label);
