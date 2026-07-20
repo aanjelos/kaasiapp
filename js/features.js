@@ -1748,8 +1748,8 @@ function renderMonthlyDetails(
       const isExcluded = isCategoryExcluded(category, 'excludeFromMonthlyTotals');
       const li = document.createElement("li");
       const opacityClass = isExcluded ? "opacity-50" : "";
-      const tooltip = isExcluded ? `data-tooltip="${category} (Hidden Category)"` : `data-tooltip="${category}"`;
-      li.innerHTML = `<span class="truncate pr-2 ${opacityClass}" ${tooltip}>${category}</span><span class="font-medium whitespace-nowrap tabular-nums ${opacityClass}" ${tooltip}>${formatCurrency(
+      const tooltip = isExcluded ? `data-tooltip="${escapeHTML(category)} (Hidden Category)"` : `data-tooltip="${escapeHTML(category)}"`;
+      li.innerHTML = `<span class="truncate pr-2 ${opacityClass}" ${tooltip}>${escapeHTML(category)}</span><span class="font-medium whitespace-nowrap tabular-nums ${opacityClass}" ${tooltip}>${formatCurrency(
         amount
       )}</span>`;
       categoryList.appendChild(li);
@@ -2783,7 +2783,7 @@ function openPayDebtForm(debtId) {
       <input type="hidden" name="debtId" value="${debtId}">
       <button type="submit" class="btn btn-primary w-full mt-3">Make Payment</button>
   `;
-  openFormModal(`Pay Debt: ${escapeHTML(debt.who)}`, formHtml, handlePayDebtSubmit);
+  openFormModal(`Pay Debt: ${debt.who}`, formHtml, handlePayDebtSubmit);
   populateDropdowns();
 
   const logExpenseCheckbox = document.getElementById("logDebtPaymentAsExpense");
@@ -3274,7 +3274,7 @@ function openReceivePaymentForm(recId) {
   `;
 
   openFormModal(
-    `Receive Payment from: ${escapeHTML(receivable.who)}`,
+    `Receive Payment from: ${receivable.who}`,
     formHtml,
     handleReceivePaymentSubmit
   );
@@ -3671,7 +3671,7 @@ function payInstallmentMonth(installmentId) {
   `;
 
   openFormModal(
-    `Confirm Installment Update: ${escapeHTML(installment.description)}`,
+    `Confirm Installment Update: ${installment.description}`,
     confirmationMessageHtml,
     null
   );
@@ -3813,7 +3813,7 @@ function openPayCcItemForm(ccTransactionId) {
       <button type="submit" class="btn btn-primary w-full mt-3">Make Payment</button>
   `;
   openFormModal(
-    `Pay CC Item: ${escapeHTML(item.description).substring(0, 30)}...`,
+    `Pay CC Item: ${item.description.substring(0, 30)}...`,
     formHtml,
     handlePayCcItemSubmit
   );
