@@ -872,7 +872,7 @@ function openEditTransactionModal(transactionId, event) {
       (acc) =>
         `<option value="${acc.id}" ${
           transaction.account === acc.id ? "selected" : ""
-        }>${acc.name} (${formatCurrency(acc.balance)})</option>`
+        }>${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})</option>`
     )
     .join("");
 
@@ -3088,7 +3088,7 @@ function openEditReceivableForm(id) {
         (acc) =>
           `<option value="${acc.id}" ${
             r.sourceAccount === acc.id ? "selected" : ""
-          }>${acc.name} (${formatCurrency(acc.balance)})</option>`
+          }>${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})</option>`
       )
       .join(
         ""

@@ -313,9 +313,9 @@ function openInitialSetupWizard() {
       // 2. Name field (Label for Cash, Input for others)
       const nameWrapper = document.createElement("div");
       if (acc.id === "cash") {
-        nameWrapper.innerHTML = `<label for="setupBalance-${acc.id}" class="text-sm font-medium text-gray-300 justify-self-start">${acc.name}</label>`;
+        nameWrapper.innerHTML = `<label for="setupBalance-${acc.id}" class="text-sm font-medium text-gray-300 justify-self-start">${escapeHTML(acc.name)}</label>`;
       } else {
-        nameWrapper.innerHTML = `<input type="text" id="setupName-${acc.id}" name="setupName-${acc.id}" value="${acc.name}" data-account-id="${acc.id}" class="text-sm w-full rounded placeholder-gray-400" ${inputStyle} placeholder="Account Name">`;
+        nameWrapper.innerHTML = `<input type="text" id="setupName-${acc.id}" name="setupName-${acc.id}" value="${escapeHTML(acc.name)}" data-account-id="${acc.id}" class="text-sm w-full rounded placeholder-gray-400" ${inputStyle} placeholder="Account Name">`;
       }
       accRow.appendChild(nameWrapper);
 
