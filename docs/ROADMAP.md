@@ -1,0 +1,138 @@
+# Kaasi Future Roadmap & Ideas
+
+This document serves as a backlog for approved feature ideas, UI/UX improvements, and technical refinements to be implemented in Kaasi over time.
+
+---
+
+## 🌟 Feature Additions
+
+### 1. Virtual Envelopes / Savings Wishlist
+- **Concept**: A dedicated area to track savings goals (e.g., "New Laptop", "Vacation").
+- **Implementation Idea**: Users can virtually allocate funds from their "Total Available" balance into specific goal envelopes. Visually represent progress with filling bars or circular rings to motivate saving.
+
+### 2. Split Bills / IOU Tracker
+- **Concept**: A built-in "Splitwise" style feature to track shared expenses and who owes who money.
+- **Implementation Idea**: Add an "Is Split" toggle when adding a transaction. If toggled, prompt the user to specify who owes them (or who they owe) and the split amount. Create a dedicated "Shared Expenses" tab to view running tallies of debts and settlements with specific friends/roommates.
+
+### 3. Gamification: Streaks & Badges
+- **Concept**: Encourage responsible spending and habit-building by rewarding users with milestones.
+- **Implementation Idea**: 
+  - **Under Budget Streaks**: Track how many consecutive months a user stays under their set Category Budgets. Display a visual "Streak" counter with fire emojis 🔥. If they break the budget, the streak resets.
+  - **Achievement Badges**: Unlockable SVG badges in the profile/settings for hitting app milestones (e.g., "Data Nerd" for 100 transactions, "Diversified" for using 5+ categories, "Debt Free" for paying off a debt).
+
+### 4. Undo Transactions
+- **Concept**: A simple way to quickly revert the last added, edited, or deleted transaction in case of an accidental action or typo.
+
+### 5. Historical Budget Progress in PDF Export
+- **Concept**: Include the user's set monthly budget goals and their progress against them within the generated PDF reports.
+- **Implementation Idea**: This will require coming up with a reliable way to save historical snapshots of category budget limits at the end of each month, rather than just the current active budgets.
+
+### 6. "Safe to Spend" Metric
+- **Concept**: A prominent dashboard number that takes your current balance, subtracts pending bills, subtracts savings goals, and tells you the actual amount of money you can safely spend without ruining your budget.
+- **Implementation Idea**: Needs careful UI/UX design to avoid cluttering the dashboard. Could potentially be a togglable view or a dedicated widget.
+
+### 7. Multi-Currency Accounts
+- **Concept**: Useful for users holding foreign currency in a Wise account, Payoneer, or an FCBU account. Allow specific accounts to have a base currency (like USD or EUR) but show the aggregated net worth in LKR based on a manually set or fetched exchange rate.
+- **Implementation Idea**: Will require significant backend restructuring for transactions and exchange rate handling. Requires deep discussion on feasibility vs complexity.
+
+### 8. Dedicated Account Transfers Audit Log
+- **Concept**: A "Transfers Log" sub-tab or filter toggle to group matching debit/credit pairs, making it simple to audit internal capital movements between cash and bank accounts.
+
+### 9. Reset Safety Net: Automatic Data Backup Prompt
+- **Concept**: Automatically trigger a JSON export download immediately before execution of the "Delete All Data" wipe, giving the user a recovery file in case they made a mistake.
+
+### 10. Custom Icon and Color Tags for Categories
+- **Concept**: Allow users to associate a custom FontAwesome icon and color code to each category in Settings to dramatically improve the scannability of transaction lists, budget cards, and visual charts.
+
+### 11. Recent Activity Section
+- **Concept**: A dedicated module or dashboard section to view the most recent actions taken in the app, such as recently added, edited, or deleted transactions, as well as transfers.
+- **Implementation Idea**: Will require building a new custom UI view to display a chronological list of activities, and ensuring new transaction types like 'transfers' are easily identifiable.
+
+### 12. Fun Facts / All-Time Stats Dashboard
+- **Concept**: A Spotify Wrapped-style "Fun Facts" or "Stats" page that highlights interesting all-time data points for the user to reflect on their financial journey.
+- **Implementation Idea**: Build a dedicated view that parses the entire `transactions` array to calculate and display fun metrics such as: Total transactions added, most common spending category, highest single expense of all time, highest earning month, highest spending day, etc. Could be implemented as a new tab in the Monthly Overview or a standalone widget.
+
+### 13. Flexible Credit Card Tracking Modes (Lump-Sum Bill vs. Per-Transaction)
+- **Concept**: Provide an option for users to select their preferred credit card tracking workflow: either logging individual credit card purchases transaction-by-transaction, or entering the total monthly credit card statement bill as a single lump-sum expense.
+
+### 14. Credit Card Initial / Starting Expenses
+- **Concept**: Allow users to set an initial carried-over balance or starting un-billed expense total when adding or configuring a Credit Card account.
+
+### 15. Support > 3 Bank Accounts
+- **Concept**: Remove or expand the restriction capping users to 3 bank accounts in setup and settings, allowing full flexibility for power users with multiple accounts.
+
+### 16. Multi-Product Ecosystem & Embedded Tools Suite (Top App Tabs)
+- **Concept**: Introduce a top-level tab switcher to seamlessly toggle between Kaasi Core expense tracking and sub-products / micro-apps.
+- **Product Ideas**:
+  - **Kaasi Split**: Shared expense and bill divider (Splitwise alternative).
+  - **BuyBye**: Impulse purchase delay & expense regret tracker.
+  - **Sri Lanka Financial Calculators**: Embedded PAYE Income Tax Calculator, EPF/ETF Payout Estimator, and Loan/Leasing Amortization Tool.
+
+---
+
+## ✨ UI / UX Polish
+
+### 1. Segmented Control Buttons for Transaction Type
+- **Concept**: Replace the standard `<select>` dropdown for Transaction Type (`Income` | `Expense` | `Transfer`) in the Add/Edit modal with prominent segmented toggle buttons for faster, one-tap selection.
+
+### 2. Mobile Floating Action Button (FAB)
+- **Concept**: Add an optional floating `+` button in the bottom-right corner visible on mobile viewports for instant 1-tap transaction entry.
+
+### 3. Prominent Credit Card Transactions Button
+- **Concept**: Redesign the "View Credit Card Transactions" button on Credit Card cards/sections to make it visually distinct and immediately noticeable.
+
+### 4. Prevent Accidental Modal Close on Text Selection Dragging
+- **Concept**: Fix an issue where selecting/dragging text inside a modal and releasing the cursor outside the modal box triggers the backdrop click handler, accidentally closing the modal.
+
+---
+
+## 🛠️ Technical Debt & Code Organization
+
+### 1. Storage Future-Proofing (IndexedDB Migration)
+- **Concept**: Migrate the primary local data storage from the 5MB-capped `localStorage` string blob to `IndexedDB` (using Dexie.js).
+- **Implementation Idea**: Must be an in-place migration that safely parses the old `KaasiData` blob and inserts it into granular IndexedDB tables (`transactions`, `debts`, etc.) without risking existing user data. `localStorage` should be kept as a fallback during the transition. This also requires switching to `UUIDv4` for unique record IDs to prevent collisions.
+
+### 2. Automatic Background Cloud Backups
+- **Concept**: Solve the "I forgot to click backup" issue by running silent, timed backups.
+- **Implementation Idea**: Add a background interval timer (e.g., every 5-10 minutes) that checks if the local state has un-synced changes (`local_newer`) and the device is online. If true, trigger a silent `executeBackupToSupabase()` upsert. Additionally, automatically restore from the cloud on launch if a newer cloud state is detected and local storage is clean.
+
+---
+
+## 📝 Blog Ideas
+
+### 1. The Privacy Cost of Auto-Tracking Finance Apps
+- **Concept**: Explain why Kaasi deliberately avoids auto-reading SMS messages for transaction tracking.
+- **Key Points**: 
+  - Break down how other native apps use aggressive permissions (like `READ_SMS`) to scrape users' personal text messages.
+  - Highlight the massive privacy and security risks of granting blanket access to an SMS inbox (e.g., exposing 2FA codes, password resets, and private conversations).
+  - Contrast this with Kaasi's local-first, privacy-respecting philosophy. Frame the lack of SMS scraping as a deliberate, empowering security feature rather than a technical limitation.
+
+### 2. Emergency Funds 101 & Calculator
+- **Concept**: A beginner's guide to understanding and building an emergency fund, featuring a built-in interactive calculator.
+- **Key Points**: Define what an emergency fund is, why it's crucial for financial stability, and actionable steps to start building one from scratch.
+- **Interactive Tool**: A working calculator where users can input their estimated monthly expenses to see their total minimum required target. They can also input their monthly savings contribution to see exactly how long it will take to build their emergency vault.
+
+### 3. Bank Failures & Deposit Insurance in Sri Lanka
+- **Concept**: Educate users on what happens to their money if their bank goes bankrupt.
+- **Key Points**: Explain the Sri Lanka Deposit Insurance Scheme (SLDIS). Clarify that the maximum compensation limit per depositor per bank is capped (currently around Rs. 1.1 million). Discuss how to distribute funds across multiple institutions to minimize risk.
+
+### 4. Trimming the Fat: Cutting Unnecessary Expenses
+- **Concept**: Practical strategies for reducing lifestyle creep and everyday waste.
+- **Key Points**: Provide a downloadable or actionable checklist for identifying and cutting recurring but unused subscriptions, impulse purchases, and optimizing daily habits without sacrificing quality of life.
+
+### 5. Why Tracking Every Penny Matters
+- **Concept**: The psychological and practical benefits of manual expense tracking.
+- **Key Points**: Discuss the concept of mindfulness in spending. How seeing where the money goes inherently changes spending behavior. Why manual input (like Kaasi's approach) builds better financial discipline than fully automated systems that you ignore.
+
+### 6. Understanding PAYE in Sri Lanka
+- **Concept**: A breakdown of the Pay-As-You-Earn (PAYE) tax system, complete with a built-in tax calculator.
+- **Key Points**: Demystify the latest tax brackets, how it affects salaries, and what exemptions exist in plain, simple terms.
+- **Interactive Tool**: Include a working calculator (similar to taxadvisor.lk) where users can input their gross salary to see their estimated take-home pay and exact tax deductions.
+
+### 7. The "PickMe/UberEats Factor" (The Local Latte Factor)
+- **Concept**: Adapting the famous "Latte Factor" to Colombo life.
+- **Key Points**: Discuss how dropping Rs. 1,500 on food delivery or iced coffee every day seemingly hurts a little, but adds up to Rs. 45,000+ a month. Show the math and how tracking it stops the bleed. Needs further discussion on the exact angle to ensure it resonates well without sounding preachy.
+
+### 8. Is the 50/30/20 Rule Realistic in Sri Lanka?
+- **Concept**: Break down the famous budgeting rule (50% Needs, 30% Wants, 20% Savings) against the reality of the Sri Lankan economy.
+- **Key Points**: Discuss how inflation and the high cost of living make allocating only 50% on "Needs" nearly impossible for many Sri Lankans given low relative incomes. Discuss how to practically adapt the rule (e.g., 60/20/20 or 70/10/20) to survive the current economic climate while still building a safety net.
