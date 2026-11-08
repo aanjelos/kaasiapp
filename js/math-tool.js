@@ -11,7 +11,6 @@ function evaluateMathExpression(inputStr) {
   expr = expr.replace(/×/g, "*").replace(/÷/g, "/");
 
   if (!/^[\d\.\+\-\*\/\(\)\s]+$/.test(expr)) return null;
-  if (!/[\+\-\*\/]/.test(expr)) return null;
 
   try {
     const tokens = expr.match(/([0-9\.]+)|([\+\-\*\/\(\)])/g);
@@ -46,11 +45,12 @@ function evaluateMathExpression(inputStr) {
       }
       if (token === '-') return -parseFactor();
       if (token === '+') return parseFactor();
-      return parseFloat(token);
+      if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(token)) throw new Error("Invalid number");
+      return Number(token);
     }
     
     const result = parseExpression();
-    if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+    if (pos === tokens.length && Number.isFinite(result) && Math.abs(result) <= Number.MAX_SAFE_INTEGER / 100) {
       return parseFloat(result.toFixed(2));
     }
   } catch (e) {
@@ -59,34 +59,78 @@ function evaluateMathExpression(inputStr) {
   return null;
 }
 
+function formatAmountInputResult(result, originalValue) {
+  // Preserve decimal intent (including .00); keep plain whole numbers plain.
+  return String(originalValue).includes(".") || !Number.isInteger(result)
+    ? result.toFixed(2) : String(result);
+}
+
 function processCalculation(inputEl) {
   const result = evaluateMathExpression(inputEl.value);
   if (result !== null) {
-    inputEl.value = result;
-    if (typeof trackEvent === "function") trackEvent("used_inline_calculator", "Feature Usage");
-    return true; 
+    const wasExpression = /[+*/()×÷=]|\d\s*-/.test(inputEl.value);
+    inputEl.value = formatAmountInputResult(result, inputEl.value);
+    const practice = inputEl.closest?.('#initialSetupModal, #kaasiTutorialModal');
+    if (wasExpression && !practice && typeof trackEvent === "function") trackEvent("used_inline_calculator", "Feature Usage");
+    if (wasExpression && !practice && typeof Milestones !== 'undefined') Milestones.track('calculator');
+    return wasExpression;
   }
   return false; 
 }
 
+function parseAmountValue(value) {
+  const result = evaluateMathExpression(String(value ?? ""));
+  return result === null ? NaN : result;
+}
+
+// Catch invalid calculator fields before any form handler mutates financial state.
+document.addEventListener("submit", (event) => {
+  const fields = event.target.querySelectorAll("input.calc-amount");
+  for (const input of fields) {
+    if (input.disabled || !input.getClientRects().length || !input.value.trim()) continue;
+    const result = parseAmountValue(input.value);
+    if (!Number.isFinite(result)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showNotification("Enter a valid amount or complete calculation. Division by zero and unfinished expressions cannot be saved.", "error", 7000);
+      input.focus();
+      return;
+    }
+    input.value = formatAmountInputResult(result, input.value);
+  }
+}, true);
+
 function positionMathToolbar(inputEl) {
-  const parent = inputEl.parentElement;
-  if (!parent.classList.contains("relative")) {
-    parent.classList.add("relative");
-  }
-  if (!parent.contains(mathToolbar)) {
-    parent.appendChild(mathToolbar);
-  }
-  mathToolbar.style.left = 'auto';
-  mathToolbar.style.right = '1rem';
-  mathToolbar.style.top = '100%';
-  mathToolbar.style.marginTop = '4px';
+  const layer=sourceFloatingLayer(inputEl);
+  if(layer===null){mathToolbar.classList.remove('visible');return false;}
+  mathToolbar.style.zIndex=String(layer);
+  // Keep the shared toolbar outside modal scroll/overflow containers.
+  if (mathToolbar.parentElement !== document.body) document.body.appendChild(mathToolbar);
+  const viewport = window.visualViewport;
+  const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
+  const width = viewport?.width || window.innerWidth;
+  const height = viewport?.height || window.innerHeight;
+  const margin = 8, gap = 4;
+  mathToolbar.style.maxWidth = `${Math.max(0, width - margin * 2)}px`;
+  mathToolbar.style.maxHeight = `${Math.max(0, height - margin * 2)}px`;
+  const input = inputEl.getBoundingClientRect();
+  const toolbar = mathToolbar.getBoundingClientRect();
+  const clamp = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
+  const x = clamp(input.right - toolbar.width, left + margin, left + width - toolbar.width - margin);
+  const below = input.bottom + gap;
+  const preferredY = below + toolbar.height <= top + height - margin ? below : input.top - toolbar.height - gap;
+  const y = clamp(preferredY, top + margin, top + height - toolbar.height - margin);
+  mathToolbar.style.left = `${x}px`;
+  mathToolbar.style.right = 'auto';
+  mathToolbar.style.top = `${y}px`;
+  mathToolbar.style.marginTop = '0';
+  return true;
 }
 
 function showMathToolbar(inputEl) {
   if (state.settings && state.settings.showMathToolbar === false) return;
   activeCalcInput = inputEl;
-  positionMathToolbar(inputEl);
+  if(positionMathToolbar(inputEl)===false)return;
   mathToolbar.classList.add("visible");
   if (toolbarHideTimeout) clearTimeout(toolbarHideTimeout);
 }

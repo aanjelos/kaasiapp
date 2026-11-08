@@ -4,6 +4,7 @@
  * Sets up UI, event listeners, and coordinates core components.
  */
 function initializeUI(isRefresh = false) {
+  if (typeof Milestones !== 'undefined') Milestones.baseline(state);
   if (window.uiInitialized && !isRefresh) return;
   window.uiInitialized = true;
   console.log("Initializing UI...");
@@ -25,7 +26,7 @@ function initializeUI(isRefresh = false) {
     state.settings.initialSetupDone === false
   ) {
     if (!isRefresh) {
-      if (localStorage.getItem("pendingCloudRestore") === "true") {
+      if (appPreferences.getItem("pendingCloudRestore") === "true") {
         console.log("Pending cloud restore detected. Skipping initial render and waiting for restore...");
         return;
       }
@@ -35,6 +36,7 @@ function initializeUI(isRefresh = false) {
     }
   }
 
+  const bindOnce = !window.uiListenersInitialized;
   const mainDateInput = $("#date");
   if (mainDateInput) mainDateInput.value = getCurrentDateString();
   const mainCcDateInput = $("#ccDate");
@@ -119,27 +121,12 @@ function initializeUI(isRefresh = false) {
   }
 
 
-  const donateModal = document.getElementById("donateModal");
-  const footerDonateBtn = document.getElementById("footerDonateBtn");
-  const closeDonateModalBtn = document.getElementById("closeDonateModal");
-
-  if (donateModal && footerDonateBtn && closeDonateModalBtn) {
-    if (!isRefresh) {
-      footerDonateBtn.addEventListener("click", () => {
-        openModalHelper("donateModal");
-      });
-      closeDonateModalBtn.addEventListener("click", () => {
-        donateModal.style.display = "none";
-      });
-      // Close modal if user clicks on the background overlay
-      donateModal.addEventListener("click", (e) => {
-        if (e.target === donateModal) {
-          donateModal.style.display = "none";
-        }
-      });
+  const donatePanel = document.getElementById("settingsDonatePanel");
+  if (donatePanel) {
+    if (bindOnce) {
 
       // Handle copy to clipboard functionality for the new modal
-      const copyButtons = donateModal.querySelectorAll(".copy-button");
+      const copyButtons = donatePanel.querySelectorAll(".copy-button");
       copyButtons.forEach((button) => {
         button.addEventListener("click", () => {
           const textToCopy = button.dataset.copyText;
@@ -197,7 +184,7 @@ function initializeUI(isRefresh = false) {
     }
   } else {
     console.warn(
-      "One or more elements for the new donate modal were not found."
+      "Donation settings panel was not found."
     );
   }
 
@@ -208,7 +195,7 @@ function initializeUI(isRefresh = false) {
   const advancedFiltersAccordion = $("#advancedFiltersAccordion");
   const resetAdvancedFiltersBtn = $("#resetAdvancedFiltersBtn");
   
-  if (!isRefresh && toggleAdvancedFiltersBtn && advancedFiltersAccordion) {
+  if (bindOnce && toggleAdvancedFiltersBtn && advancedFiltersAccordion) {
     toggleAdvancedFiltersBtn.addEventListener("click", () => {
       advancedFiltersAccordion.classList.toggle("hidden");
     });
@@ -219,7 +206,7 @@ function initializeUI(isRefresh = false) {
   const filterCategoryDropdown = $("#filterCategoryDropdown");
   const filterCategoryBtnText = $("#filterCategoryBtnText");
 
-  if (!isRefresh && filterCategoryBtn && filterCategoryDropdown) {
+  if (bindOnce && filterCategoryBtn && filterCategoryDropdown) {
     filterCategoryBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       filterCategoryDropdown.classList.toggle("hidden");
@@ -232,6 +219,7 @@ function initializeUI(isRefresh = false) {
     });
 
     filterCategoryDropdown.addEventListener("change", (e) => {
+      if (typeof Milestones !== 'undefined') Milestones.track('search_filters');
       if (e.target.tagName.toLowerCase() === "input" && e.target.type === "checkbox") {
         const isAllCheckbox = e.target.id === "filterCategoryAll";
         const allCheckboxes = Array.from(filterCategoryDropdown.querySelectorAll(".filter-category-checkbox"));
@@ -429,8 +417,9 @@ function initializeUI(isRefresh = false) {
   const filterDateRange = $("#filterDateRange");
   const customDateInputs = $("#customDateInputs");
   
-  if (filterDateRange && !isRefresh) {
+  if (filterDateRange && bindOnce) {
     filterDateRange.addEventListener("change", (e) => {
+      if (typeof Milestones !== 'undefined') Milestones.track('search_filters');
       const range = e.target.value;
       const filterStartDate = $("#filterStartDate");
       const filterEndDate = $("#filterEndDate");
@@ -487,7 +476,7 @@ function initializeUI(isRefresh = false) {
     $("#filterMaxAmount")
   ];
 
-  filterInputs.forEach(input => {
+  if (bindOnce) filterInputs.forEach(input => {
     if (input) {
       const handler = (e) => {
         if ((input.id === "filterStartDate" || input.id === "filterEndDate") && e.isTrusted) {
@@ -500,13 +489,13 @@ function initializeUI(isRefresh = false) {
     }
   });
 
-  if (!isRefresh && resetAdvancedFiltersBtn) {
+  if (bindOnce && resetAdvancedFiltersBtn) {
     resetAdvancedFiltersBtn.addEventListener("click", () => {
       window.resetAdvancedFiltersAndSearch(true);
     });
   }
 
-  if (monthlySearchInput && clearMonthlySearchBtn) {
+  if (bindOnce && monthlySearchInput && clearMonthlySearchBtn) {
     if (!monthlySearchInput.value.trim()) {
       clearMonthlySearchBtn.style.display = "none";
       clearMonthlySearchBtn.disabled = true;
@@ -549,7 +538,7 @@ function initializeUI(isRefresh = false) {
   const ccHistorySearchInput = $("#ccHistorySearchInput");
   const clearCcHistorySearchBtn = $("#clearCcHistorySearchBtn");
 
-  if (!isRefresh && ccHistorySearchInput && clearCcHistorySearchBtn) {
+  if (bindOnce && ccHistorySearchInput && clearCcHistorySearchBtn) {
     const triggerCcSearch = () => {
       const renderFunction = document.body.renderCcHistoryList;
       if (typeof renderFunction === "function") {
@@ -584,14 +573,9 @@ function initializeUI(isRefresh = false) {
     googleLogoutButton.onclick = signOut;
   }
 
-  const backupToSupabaseButton = $("#backupToSupabaseBtn");
+  const backupToSupabaseButton = $("#syncCloudBtn");
   if (backupToSupabaseButton) {
-    backupToSupabaseButton.onclick = backupToSupabase;
-  }
-
-  const restoreFromSupabaseButton = $("#restoreFromSupabaseBtn");
-  if (restoreFromSupabaseButton) {
-    restoreFromSupabaseButton.onclick = restoreFromSupabase;
+    backupToSupabaseButton.onclick = syncCloudData;
   }
 
   // --- MODIFIED: shortcutTargetGroup listener ---
@@ -600,7 +584,7 @@ function initializeUI(isRefresh = false) {
     shortcutTargetGroup.onchange = (e) => {
       if (e.target.name === "shortcutTarget") {
         console.log(`Shortcut target changed to: ${e.target.value}`);
-        localStorage.setItem("preferredSyncMethod", e.target.value);
+        appPreferences.setItem("preferredSyncMethod", e.target.value);
         updateHeaderShortcutButtons();
       }
     };
@@ -616,7 +600,6 @@ function initializeUI(isRefresh = false) {
   $("#addDebtBtn").onclick = openAddDebtForm;
   $("#addReceivableBtn").onclick = openAddReceivableForm;
   $("#addInstallmentBtn").onclick = openAddInstallmentForm;
-  $("#cashCounterBtn").onclick = openCashCounter;
   $("#ccHistoryBtn").onclick = openCcHistoryModal;
 
   const viewDebtsBtn = $("#viewDebtsBtn");
@@ -688,7 +671,7 @@ function initializeUI(isRefresh = false) {
           if (dashOpt) dashOpt.remove();
           
           if (!categorySelect.value || categorySelect.value === "-disabled-") {
-            const defaultCat = state.settings.defaultTransferFeeCategory || "Bank Charges";
+            const defaultCat = getTransferFeeCategory();
             if (Array.from(categorySelect.options).some(opt => opt.value === defaultCat)) {
               categorySelect.value = defaultCat;
             } else if (categorySelect.options.length > 1) {
@@ -723,7 +706,7 @@ function initializeUI(isRefresh = false) {
         
         // Auto-select default fee category if available
         if (categorySelect) {
-          const defaultCat = state.settings.defaultTransferFeeCategory || "Bank Charges";
+          const defaultCat = getTransferFeeCategory();
           if (Array.from(categorySelect.options).some(opt => opt.value === defaultCat)) {
             categorySelect.value = defaultCat;
           }
@@ -778,6 +761,7 @@ function initializeUI(isRefresh = false) {
     document.body.dataset.keyboardListenerAttached = "true";
     console.log("Keyboard shortcut listener attached.");
   }
+  window.uiListenersInitialized = true;
 }
 
 
@@ -797,93 +781,96 @@ function initializeUI(isRefresh = false) {
  * Updates the header backup/restore buttons to reflect the selected shortcut target.
  */
 function updateHeaderShortcutButtons() {
-  const backupBtn = $("#headerBackupBtn");
-  const restoreBtn = $("#headerRestoreBtn");
-  const localRadio = $("#shortcutLocal");
+  refreshKaasiUpdateNotice();
+  if(typeof updateSyncPauseControls==='function')updateSyncPauseControls();
+  const backupBtn = $("#headerBackupBtn"), restoreBtn = $("#headerRestoreBtn");
   const cloudRadio = $("#shortcutCloud");
-
-  if (!backupBtn || !restoreBtn || !localRadio || !cloudRadio) {
-    console.warn("Header shortcut buttons or radio inputs not found.");
-    return;
-  }
-
-  const importInput = $("#importDataInput"); // Get the file input element
-  
-  // Mobile elements
-  const dropBackupText = $("#dropBackupText");
-  const dropRestoreText = $("#dropRestoreText");
-  const dropBackupBtn = $("#dropBackupBtn");
-  const dropRestoreBtn = $("#dropRestoreBtn");
-  const mobileMenuIcon = $("#mobileMenuIcon");
-
-  // Check if cloud is selected AND enabled
+  if (!backupBtn || !restoreBtn || !cloudRadio) return;
   const isCloud = cloudRadio.checked && !cloudRadio.disabled;
-  
-  // Reset mobile classes and text first
-  if (dropBackupBtn) dropBackupBtn.classList.remove("pulse-orange");
-  if (dropRestoreBtn) dropRestoreBtn.classList.remove("pulse-green");
-  if (mobileMenuIcon) mobileMenuIcon.classList.remove("pulse-orange", "pulse-green");
-  
-  // Default base texts depending on mode
-  const baseExportText = isCloud ? "Export to Cloud" : "Export Local File";
-  const baseImportText = isCloud ? "Import from Cloud" : "Import Local File";
-  
-  if (dropBackupText) dropBackupText.textContent = baseExportText;
-  if (dropRestoreText) dropRestoreText.textContent = baseImportText;
-
+  const dropBackupBtn = $("#dropBackupBtn"), dropRestoreBtn = $("#dropRestoreBtn");
+  const dropBackupText = $("#dropBackupText"), dropRestoreText = $("#dropRestoreText");
+  const syncBtn = $("#syncCloudBtn"), menuIcon = $("#mobileMenuIcon");
+  const mobileSyncBtn = $("#mobileSyncBtn");
+  const desktopSyncBtn = $('#headerCloudSyncBtn');
+  for (const indicator of [mobileSyncBtn, desktopSyncBtn]) {
+    indicator?.classList.toggle('sync-offline-pulse', isCloud && !navigator.onLine);
+  }
+  const pausedConflict=automaticSyncPaused() && window.currentCloudSyncStatus==='conflict';
+  const syncMarkup = `<i class="fas ${pausedConflict ? 'fa-exclamation-triangle sync-paused-warning' : 'fa-sync-alt'}${cloudSyncBusy ? ' fa-spin' : ''}" aria-hidden="true"></i>`;
+  const lastSynced = Number(appPreferences.getItem('lastLocalCloudSync'));
+  const syncHint = `${cloudSyncStatusText()}${lastSynced ? ` · Last synced: ${formatCloudBackupTime(new Date(lastSynced).toISOString())}` : ''} (Ctrl+S)`;
+  if (mobileSyncBtn) {
+    mobileSyncBtn.hidden = !isCloud;
+    mobileSyncBtn.onclick = syncCloudData;
+    mobileSyncBtn.disabled = cloudSyncBusy;
+    mobileSyncBtn.innerHTML = `<span id="mobileSyncStatus" class="dashboard-sync-status" role="status" aria-live="polite"></span>${syncMarkup}`;
+    mobileSyncBtn.setAttribute("aria-busy", String(isCloud && cloudSyncBusy));
+    mobileSyncBtn.setAttribute("aria-label", cloudSyncBusy ? "Syncing…" : "Sync");
+    mobileSyncBtn.title = syncHint;
+  }
+  if (desktopSyncBtn) {
+    desktopSyncBtn.hidden = !isCloud;
+    desktopSyncBtn.disabled = cloudSyncBusy;
+    desktopSyncBtn.onclick = syncCloudData;
+    desktopSyncBtn.innerHTML = `<span id="desktopSyncStatus" class="dashboard-sync-status" role="status" aria-live="polite"></span>${syncMarkup}`;
+    desktopSyncBtn.setAttribute('aria-busy',String(cloudSyncBusy));
+    desktopSyncBtn.setAttribute('aria-label',cloudSyncBusy ? 'Syncing…' : cloudSyncStatusText());
+    desktopSyncBtn.title = syncHint;
+  }
+  if (dropBackupBtn?.parentElement) {
+    dropBackupBtn.parentElement.hidden = isCloud;
+    dropBackupBtn.parentElement.classList.toggle("hidden", isCloud);
+  }
+  const status = window.currentCloudSyncStatus || "unknown";
+  for (const id of ['desktopSyncStatus','mobileSyncStatus']) {
+    const label = document.getElementById(id);
+    if (label) { label.hidden = !isCloud; label.textContent = isCloud ? cloudSyncStatusText() : ''; }
+  }
+  const descriptions = {
+    local_newer: "Sync — local changes ready to upload",
+    cloud_newer: "Sync — cloud changes ready to download",
+    conflict: "Sync — changes on both devices; review copies",
+    review: "Sync — compare copies before choosing",
+    synced: "Sync — already synced",
+    unknown: "Sync — check cloud status"
+  };
+  for (const element of [backupBtn, restoreBtn, dropBackupBtn, dropRestoreBtn, syncBtn, menuIcon, mobileSyncBtn, desktopSyncBtn]) {
+    element?.classList.remove("pulse-orange", "pulse-green", "pulse-sync-conflict");
+  }
+  restoreBtn.hidden = isCloud;
+  backupBtn.hidden = isCloud;
+  backupBtn.classList.toggle('hidden',isCloud);
+  restoreBtn.classList.toggle("hidden", isCloud);
+  if (dropRestoreBtn?.parentElement) { dropRestoreBtn.parentElement.hidden = isCloud; dropRestoreBtn.parentElement.classList.toggle("hidden", isCloud); }
+  backupBtn.innerHTML = isCloud ? `<i class="fas fa-sync-alt fa-lg${cloudSyncBusy ? " fa-spin" : ""}" aria-hidden="true"></i>` : '<i class="fas fa-floppy-disk fa-lg"></i>';
+  backupBtn.setAttribute("aria-busy", String(isCloud && cloudSyncBusy));
+  if (dropBackupBtn) dropBackupBtn.innerHTML = isCloud ? '<i class="fas fa-sync-alt fa-lg"></i>' : '<i class="fas fa-floppy-disk fa-lg"></i>';
   if (isCloud) {
-    // Set to CLOUD mode
-    backupBtn.classList.remove("pulse-orange");
-    restoreBtn.classList.remove("pulse-green");
-    
-    const modalBackupBtn = $("#backupToSupabaseBtn");
-    const modalRestoreBtn = $("#restoreFromSupabaseBtn");
-    if (modalBackupBtn) modalBackupBtn.style.boxShadow = "";
-    if (modalRestoreBtn) modalRestoreBtn.style.boxShadow = "";
-
-    if (window.currentCloudSyncStatus === "cloud_newer") {
-      restoreBtn.classList.add("pulse-green");
-      if (modalRestoreBtn) modalRestoreBtn.style.boxShadow = "0 0 0 2px var(--success-indicator-color)";
-      
-      restoreBtn.dataset.tooltip = `New cloud data! (Synced ${lastCloudSyncTimeString} elsewhere)`;
-      backupBtn.dataset.tooltip = "Export to Cloud (Ctrl+E)";
-      
-      // Mobile UI
-      if (dropRestoreText) dropRestoreText.textContent = `Import from Cloud (New: ${lastCloudSyncTimeString})`;
-      if (dropRestoreBtn) dropRestoreBtn.classList.add("pulse-green");
-      if (mobileMenuIcon) mobileMenuIcon.classList.add("pulse-green");
-    } else if (window.currentCloudSyncStatus === "local_newer") {
-      backupBtn.classList.add("pulse-orange");
-      if (modalBackupBtn) modalBackupBtn.style.boxShadow = "0 0 0 2px var(--accent-primary)";
-      
-      backupBtn.dataset.tooltip = "Unsaved local changes! Export to save.";
-      restoreBtn.dataset.tooltip = "Import from Cloud (Ctrl+I)";
-      
-      // Mobile UI
-      if (dropBackupText) dropBackupText.textContent = "Export to Cloud (Unsaved changes)";
-      if (dropBackupBtn) dropBackupBtn.classList.add("pulse-orange");
-      if (mobileMenuIcon) mobileMenuIcon.classList.add("pulse-orange");
-    } else {
-      if (lastCloudSyncTimeString) {
-        backupBtn.dataset.tooltip = `Export to Cloud (Fully synced: ${lastCloudSyncTimeString})`;
-        if (dropBackupText) dropBackupText.textContent = `Export to Cloud (Synced: ${lastCloudSyncTimeString})`;
-      } else {
-        backupBtn.dataset.tooltip = "Export to Cloud (Ctrl+E)";
-      }
-      restoreBtn.dataset.tooltip = "Import from Cloud (Ctrl+I)";
+    const text = cloudSyncBusy ? "Syncing…" : automaticSyncPaused() ? (pausedConflict ? 'Sync Paused — Both copies changed; open Data & Backups' : 'Sync Paused — Open Data & Backups') : descriptions[status] || descriptions.unknown;
+    mobileSyncBtn?.setAttribute("aria-label", text);
+    backupBtn.dataset.tooltip = `${text} (Ctrl+S)`;
+    backupBtn.setAttribute("aria-keyshortcuts", "Control+S");
+    backupBtn.setAttribute("aria-label", text);
+    backupBtn.disabled = cloudSyncBusy;
+    backupBtn.onclick = syncCloudData;
+    if (dropBackupBtn) dropBackupBtn.disabled = cloudSyncBusy;
+    if (dropBackupText) dropBackupText.textContent = text;
+    if (navigator.onLine && !cloudSyncBusy && !automaticSyncPaused()) {
+      const pulse = status === "local_newer" ? "pulse-orange" : status === "cloud_newer" ? "pulse-green"
+        : status === "conflict" || status === "review" ? "pulse-sync-conflict" : null;
+      if (pulse) for (const element of [backupBtn, mobileSyncBtn, desktopSyncBtn]) element?.classList.add(pulse);
     }
-
-    backupBtn.onclick = backupToSupabase; // Assign cloud backup function
-    restoreBtn.onclick = () => restoreFromSupabase(false, true); // Assign cloud restore function
   } else {
-    // Set to LOCAL mode (default)
+    backupBtn.disabled = false;
     backupBtn.dataset.tooltip = "Export Local File (Ctrl+E)";
-    backupBtn.onclick = exportData; // Assign local export function
-
+    backupBtn.setAttribute("aria-keyshortcuts", "Control+E");
+    backupBtn.setAttribute("aria-label", "Export Local File");
+    backupBtn.onclick = exportData;
     restoreBtn.dataset.tooltip = "Import Local File (Ctrl+I)";
-    restoreBtn.onclick = () => {
-      triggerDataImport();
-    };
+    restoreBtn.onclick = triggerDataImport;
+    if (dropBackupText) dropBackupText.textContent = "Export Local File";
+    if (dropRestoreText) dropRestoreText.textContent = "Import Local File";
+    if (dropBackupBtn) dropBackupBtn.disabled = false;
   }
 }
 
@@ -916,14 +903,20 @@ let lastCloudSyncTimeString = "";
 
 // --- END NEW SUPABASE FUNCTIONS ---
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   console.log("DOM Loaded. Initializing...");
+  document.getElementById("app-content").inert = true;
+  try { await startLocalStorage(); }
+  catch (error) { showStorageFailure(error); return; }
+  // Reload starts with no open dialogs, even if the previous page had pushed
+  // modal navigation entries before it was refreshed.
+  history.replaceState({ openModals: [] }, "", location.href);
   loadData(); // Load existing data or set up default state
   
   if (state.settings && state.settings.appPin && state.settings.appPin.enabled) {
     // Hide main container until unlocked to prevent inspect-element vulnerability
-    const appContainer = document.getElementById("appContainer");
-    if (appContainer) appContainer.classList.add("hidden");
+    const appContent = document.getElementById("app-content");
+    if (appContent) appContent.inert = true;
     
     // Hide preloader so it doesn't run its timer in the background
     const preloaderElement = document.getElementById("preloader");
@@ -934,6 +927,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     showPinLockScreen();
   } else {
+    document.getElementById("app-content").inert = false;
     initializeUI(); // Set up all initial UI elements, event listeners, and render initial views
     initializeGlobalTooltips(); // Initialize the global tooltip handler
     if (typeof executePreloaderSequence === "function") executePreloaderSequence();
@@ -958,41 +952,8 @@ document.addEventListener("DOMContentLoaded", () => {
   resetInactivityTimer();
   // --- END AUTO-LOCK ---
 
-  // Event listener to update date fields and attempt to focus window when tab becomes visible
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      console.log("Page became visible, attempting to focus and update dates.");
-      window.focus(); // Attempt to bring focus to the window/document
-
-      const mainTransactionDateInput = $("#date"); // Main transaction form date
-      if (mainTransactionDateInput) {
-        mainTransactionDateInput.value = getCurrentDateString(); // Use local date
-      }
-
-      const ccTransactionDateInput = $("#ccDate"); // Credit Card transaction form date
-      if (ccTransactionDateInput) {
-        ccTransactionDateInput.value = getCurrentDateString(); // Use local date
-      }
-    }
-  });
-
-  // Event listener to update date fields and attempt to focus window when tab becomes visible
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      console.log("Page became visible, attempting to focus and update dates.");
-      window.focus(); // Attempt to bring focus to the window/document
-
-      const mainTransactionDateInput = $("#date"); // Main transaction form date
-      if (mainTransactionDateInput) {
-        mainTransactionDateInput.value = getCurrentDateString(); // Use local date
-      }
-
-      const ccTransactionDateInput = $("#ccDate"); // Credit Card transaction form date
-      if (ccTransactionDateInput) {
-        ccTransactionDateInput.value = getCurrentDateString(); // Use local date
-      }
-    }
-  });
+  // Date defaults are set by initializeUI on launch/refresh. Returning from
+  // another tab must preserve the date on an unfinished transaction.
 });
 
 window.executePreloaderSequence = function() {
@@ -1004,11 +965,11 @@ window.executePreloaderSequence = function() {
   // Initialize random preloader loading screen tips
   const PRELOADER_TIPS = [
     // Supabase & Backups
-    "Access Cloud Backups in Settings > Data.",
+    "Manage local and cloud backups in Settings > Data & Backups.",
     
     // UI Customize & Theme
     "Toggle Dark & Light Mode in Settings > Appearance.",
-    "Hide Cash Counter, Debts, or Installments in Settings > Appearance.",
+    "Choose which dashboard sections appear in Settings > Appearance.",
     "Hide unused bank accounts in Settings > Accounts.",
     
     // Tools & Shortcuts
@@ -1018,39 +979,54 @@ window.executePreloaderSequence = function() {
     
     // Details & Charts
     "Tap a transaction to view its full details and description.",
-    "Click legends in the dashboard chart to toggle lines visibility.",
-    "Click the chart title icon to toggle between daily and monthly views.",
+    "Tap a chart legend to show or hide income and expenses.",
+    "Use the chart toggle to switch chart views.",
     "Filter history by category, amount, or date in All Transactions.",
     "Export print-friendly PDF reports inside All Transactions.",
     "Exclude categories from charts or PDFs in Category Settings.",
     "Enable a PIN lock screen in Settings > Security.",
     
     // Easter Eggs & Local-First
-    "Kaasi works 100% offline. No signal, no problem!",
+    "Track your money offline. Cloud sync resumes when you’re connected.",
     "Adulting is expensive. Kaasi helps you keep track.",
     "Fun Fact: Kaasi means coins in Sinhala.",
-    "Your financial secrets are safe. All data stays local by default.",
+    "Your records are saved on this device. Connect cloud backup to sync across devices.",
     "Budgeting: because coffee isn't free.",
-    "Rumor has it that budgeting makes you rich. Let's find out!"
+    "Budgeting won’t make you rich overnight. It can explain where lunch money went."
   ];
 
   // Dynamically add keyboard shortcuts for non-mobile/desktop users
   const isMobile = window.innerWidth < 768;
   if (!isMobile) {
     PRELOADER_TIPS.push(
-      "Quickly backup with Ctrl+E and restore with Ctrl+I.",
+      "Use Ctrl+S to sync with the cloud when signed in.",
+      "Use Ctrl+E to export a local backup file.",
+      "Use Ctrl+I to import a local backup file.",
+      "Press − for an expense, + for income, or T for a transfer.",
+      "Press C to start a credit card transaction.",
+      "Press S to open Settings, or search while viewing All Transactions.",
       "Press the 'A' key to view All Transactions.",
       "Press the '?' key to view Keyboard Shortcuts."
     );
   }
   
   PRELOADER_TIPS.push(
-    "Tip: You can edit past transactions by tapping them.",
     "A budget is telling your money where to go, instead of wondering where it went.",
-    "Pro Tip: You can customize your categories in the Categories view.",
+    "Make your categories your own in Settings > Categories.",
     "Use the date filter to see exactly how much you spent last month.",
     "Did you know? Setting limits on categories helps control spending.",
-    "Every Rupee counts! Keep tracking."
+    "Every Rupee counts! Keep tracking.",
+    "Start typing a description to find entries from your history.",
+    "Count your notes and coins in Settings > Extras > Cash Counter.",
+    "Paid a subscription elsewhere? Choose Already Recorded to avoid adding it twice.",
+    "A PIN adds privacy to your screen. Keep backups somewhere safe too.",
+    "An annual bill is a monthly saving goal in disguise.",
+    "Small purchases count. So do small savings.",
+    "Your balance deserves attention, not judgment.",
+    "Past you bought it. Present you gets to categorize it.",
+    "Your wallet called. It appreciates the supervision.",
+    "Money talks. Transaction history keeps the receipts.",
+    "A little tracking today saves a lot of guessing tomorrow."
   );
 
   const tipTextElement = document.getElementById("preloader-tip-text");
@@ -1060,7 +1036,7 @@ window.executePreloaderSequence = function() {
   }
 
   if (preloaderElement && appContentElement) {
-    if (localStorage.getItem("pendingCloudRestore") === "true") {
+    if (appPreferences.getItem("pendingCloudRestore") === "true") {
       console.log("Pending cloud restore detected. Keeping preloader visible until restore completes.");
       // We attach a global helper to hide it later when restore finishes
       window.hidePreloader = () => {
@@ -1111,10 +1087,86 @@ window.executePreloaderSequence = function() {
 // --- PWA Offline Support & Install Logic ---
 let deferredPrompt;
 
+async function applyKaasiUpdate(reg, button) {
+  if (button.disabled) return;
+  if (storageOperationPending) return showNotification("Wait for your save to finish before updating.", "info");
+  button.disabled = true;
+  button.textContent = "Updating…";
+  let cleanup = () => {};
+  try {
+    await appPreferences.flush();
+    if (storageOperationPending) {
+      showNotification("Wait for your save to finish before updating.", "info");
+      return;
+    }
+    // Another tab may have activated the worker while preferences were flushing.
+    const worker = reg.waiting;
+    if (!worker) { location.reload(); return; }
+    await new Promise((resolve, reject) => {
+      const controllerChanged = () => resolve();
+      const stateChanged = () => {
+        if (worker.state === "activated") resolve();
+        else if (worker.state === "redundant") reject(new Error("Update was replaced before activation."));
+      };
+      const timeout = setTimeout(() => reject(new Error("Update activation timed out.")), 15000);
+      cleanup = () => {
+        clearTimeout(timeout);
+        navigator.serviceWorker.removeEventListener("controllerchange", controllerChanged);
+        worker.removeEventListener("statechange", stateChanged);
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", controllerChanged);
+      worker.addEventListener("statechange", stateChanged);
+      worker.postMessage("KAASI_APPLY_UPDATE");
+      stateChanged();
+    });
+    location.reload();
+  } catch (error) {
+    console.error("Kaasi update could not be applied.", error);
+    showNotification("The update could not finish. Please close other Kaasi tabs, then refresh and retry.", "error");
+  } finally {
+    cleanup();
+    button.disabled = false;
+    button.textContent = "Update Kaasi";
+  }
+}
+
+function kaasiUpdateNoticeSafe() {
+  if(window.cloudSessionCheckPending || window.cloudSyncPriorityPending)return false;
+  return !isAppLocked() && !storageOperationPending && !cloudSyncBusy &&
+    ![...document.querySelectorAll('.modal')].some(modal=>modal.style.display==='block') &&
+    document.getElementById('storageScreen')?.hidden!==false &&
+    document.getElementById('cloudRestoreOverlay')?.hidden!==false &&
+    !['amount','description','ccAmount','ccDescription'].some(id=>document.getElementById(id)?.value?.trim()) &&
+    !document.activeElement?.matches?.('input,select,textarea,[contenteditable="true"]');
+}
+function refreshKaasiUpdateNotice() {
+  const notice=document.getElementById('appUpdateNotice');
+  if(notice)notice.hidden=!kaasiUpdateNoticeSafe();
+}
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").then((reg) => {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: 'none' }).then((reg) => {
       console.log("Service Worker registered successfully.", reg);
+      const offerUpdate = () => {
+        if (!reg.waiting || document.getElementById("appUpdateNotice")) return;
+        const notice = document.createElement("div");
+        notice.id = "appUpdateNotice";
+        notice.setAttribute("role", "status");
+        const label = document.createElement("span");
+        label.textContent = "A new version is ready.";
+        const button = document.createElement("button");
+        button.type = "button"; button.className = "btn btn-secondary"; button.textContent = "Update Kaasi";
+        button.onclick = () => applyKaasiUpdate(reg, button);
+        notice.append(label, button);
+        document.body.appendChild(notice);
+        const refresh=refreshKaasiUpdateNotice;
+        refresh();
+        for(const event of ['input','change','focusin','focusout','click','popstate'])window.addEventListener(event,()=>setTimeout(refresh,0));
+        const observer=new MutationObserver(refresh);
+        document.querySelectorAll('.modal, #pinLockOverlay, #storageScreen, #cloudRestoreOverlay').forEach(element=>observer.observe(element,{attributes:true,attributeFilter:['style','class','hidden']}));
+      };
+      offerUpdate();
+      reg.addEventListener("updatefound", () => reg.installing?.addEventListener("statechange", offerUpdate));
     }).catch((err) => {
       console.error("Service Worker registration failed:", err);
     });
@@ -1213,6 +1265,9 @@ function initializeGlobalTooltips() {
 
   function updateTooltipPosition() {
     if (!activeTarget) return;
+    const layer=sourceFloatingLayer(activeTarget);
+    if(layer===null){hideTooltip();return;}
+    tooltipEl.style.zIndex=String(layer);
 
     const rect = activeTarget.getBoundingClientRect();
     const tooltipText = activeTarget.getAttribute("data-tooltip");

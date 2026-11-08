@@ -38,7 +38,7 @@ function generateMonthlyPdfReport() {
 
   let totalIncome = 0;
   let totalExpense = 0;
-  const categoryTotals = {};
+  const categoryTotals = Object.create(null);
 
   transactionsInMonth.forEach((t) => {
     if (t.type === "income") {
@@ -368,6 +368,11 @@ function generateMonthlyPdfReport() {
 
 
 
+// Recalculate the rolling window only when crossing the mobile breakpoint.
+window.matchMedia("(max-width: 639px)").addEventListener?.("change", () => {
+  if (monthlyOverviewChartInstance) renderMonthlyOverviewChart();
+});
+
 function renderMonthlyOverviewChart() {
   if (typeof Chart === "undefined") {
     console.warn("Chart.js is not loaded. Cannot render monthly overview chart.");
@@ -464,8 +469,9 @@ function renderMonthlyOverviewChart() {
 
     // --- LOGIC FOR YEARLY (INCOME VS EXPENSE) VIEW ---
   } else {
+    const monthCount = window.matchMedia("(max-width: 639px)").matches ? 6 : 12;
     if (chartTitleEl)
-      chartTitleEl.textContent = "Monthly Income vs Expenses (Last 12 Months)";
+      chartTitleEl.textContent = `Monthly Income vs Expenses (Last ${monthCount} Months)`;
     if (toggleBtnIcon) {
       toggleBtnIcon.className = "fas fa-chart-line fa-lg";
       toggleBtn.dataset.tooltip = "Switch to Daily Expense View";
@@ -476,7 +482,7 @@ function renderMonthlyOverviewChart() {
     const expenseData = [];
     const now = new Date();
 
-    for (let i = 11; i >= 0; i--) {
+    for (let i = monthCount - 1; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const year = date.getFullYear();
       const month = date.getMonth();
@@ -528,10 +534,51 @@ function renderMonthlyOverviewChart() {
   }
 
   // --- Create or Update the Chart ---
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const chartDataHost = document.getElementById('overviewChartData');
+  if (chartDataHost) {
+    chartDataHost.replaceChildren();
+    const table = document.createElement('table');
+    const caption = document.createElement('caption');
+    caption.textContent = chartTitleEl?.textContent || 'Dashboard chart data';
+    table.appendChild(caption);
+    const thead = document.createElement('thead');
+    const head = document.createElement('tr'); thead.appendChild(head); table.appendChild(thead);
+    ['Period', ...chartDatasets.map(series => series.label)].forEach(label => {
+      const th = document.createElement('th'); th.scope = 'col'; th.textContent = label; head.appendChild(th);
+    });
+    const body = document.createElement('tbody'); table.appendChild(body);
+    chartLabels.forEach((label, index) => {
+      const row = document.createElement('tr'); body.appendChild(row);
+      const th = document.createElement('th'); th.scope = 'row'; th.textContent = label; row.appendChild(th);
+      chartDatasets.forEach(series => { const cell = document.createElement('td'); cell.textContent = formatCurrency(series.data[index] || 0); row.appendChild(cell); });
+    });
+    chartDataHost.appendChild(table);
+  }
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', `${chartTitleEl?.textContent || 'Dashboard chart'}. Exact values follow in the chart data table.`);
+  const renderSignature = JSON.stringify({
+    mode: dashboardChartState, labels: chartLabels, datasets: chartDatasets, reducedMotion,
+    chartGridColor, chartTickColor, chartLegendColor, chartTooltipBg, chartTooltipText
+  });
   if (monthlyOverviewChartInstance) {
-    // Optimization: Update data and options instead of destroying the canvas
-    monthlyOverviewChartInstance.data.labels = chartLabels;
-    monthlyOverviewChartInstance.data.datasets = chartDatasets;
+    if (monthlyOverviewChartInstance.kaasiOverviewSignature === renderSignature) return;
+    // Chart.js tracks series by object identity. Retain their controllers and
+    // point positions so edits animate from the currently displayed values.
+    const data = monthlyOverviewChartInstance.data;
+    data.labels.splice(0, data.labels.length, ...chartLabels);
+    const nextDatasets = chartDatasets.map(next => {
+      const existing = data.datasets.find(series => series.label === next.label && series.type === next.type);
+      if (!existing) return next;
+      const values = existing.data;
+      // Splicing every value makes Chart.js remove/reinsert every point.
+      // Assign slots directly so existing point elements retain their positions.
+      values.length = next.data.length;
+      next.data.forEach((value, index) => { values[index] = value; });
+      Object.assign(existing, next, {data: values});
+      return existing;
+    });
+    data.datasets.splice(0, data.datasets.length, ...nextDatasets);
     
     // Update theme-dependent options in case the user toggled light/dark mode
     if (monthlyOverviewChartInstance.options && monthlyOverviewChartInstance.options.scales) {
@@ -545,7 +592,8 @@ function renderMonthlyOverviewChart() {
       monthlyOverviewChartInstance.options.plugins.tooltip.bodyColor = chartTooltipText;
     }
     
-    monthlyOverviewChartInstance.update();
+    monthlyOverviewChartInstance.options.animation = reducedMotion ? false : { duration: 400, easing: "easeOutQuart" };
+    monthlyOverviewChartInstance.update(reducedMotion ? 'none' : undefined);
   } else {
     monthlyOverviewChartInstance = new Chart(ctx, {
       type: "line",
@@ -556,6 +604,7 @@ function renderMonthlyOverviewChart() {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: reducedMotion ? false : { duration: 400, easing: "easeOutQuart" },
         scales: {
           y: {
             beginAtZero: true,
@@ -598,6 +647,7 @@ function renderMonthlyOverviewChart() {
       },
     });
   }
+  monthlyOverviewChartInstance.kaasiOverviewSignature = renderSignature;
 }
 
 function renderMonthlyPieChart(data, isUpdate = false) {
@@ -700,7 +750,7 @@ function renderMonthlyPieChart(data, isUpdate = false) {
       },
       options: {
         cutout: "72%",
-        animation: isUpdate ? false : { animateRotate: true, animateScale: true },
+        animation: isUpdate || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { animateRotate: true, animateScale: true },
         responsive: true,
         maintainAspectRatio: false,
         onClick: (event, activeElements, chart) => {

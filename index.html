@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="application-version" content="v6.361m" />
+    <meta name="application-version" content="v6.502n" />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="img/LogoIcon.svg">
     <title>Kaasi - Expense Tracker | Manage Your Finances 🇱🇰</title>
@@ -43,16 +44,18 @@
       content="https://app.kaasi.com.lk/img/Metaimg.jpg"
     />
     <link rel="icon" href="img/LogoIcon.svg" type="image/svg+xml" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
     />
     <!-- SUPABASE JAVASCRIPT CLIENT -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="style.css" />
-    <link rel="stylesheet" href="tailwind.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0" integrity="sha384-UagCvVPT5XXA0Hx+nJYUAGBFseHT9zBgpJMSebsAxl9lciTwbT+39j5VfRjdP5Tp" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="style.css?v=v6.502n" />
+    <link rel="stylesheet" href="settings-workspace.css?v=v6.502n" />
+    <link rel="stylesheet" href="onboarding.css?v=v6.502n" />
+    <link rel="stylesheet" href="tailwind.css?v=v6.502n" />
 
     <script
       async
@@ -72,6 +75,18 @@
   </head>
 
   <body class="min-h-screen transition-colors duration-300">
+    <section id="storageScreen" class="storage-screen" hidden role="dialog" aria-modal="true" aria-labelledby="storageTitle">
+      <div class="storage-panel">
+        <img src="img/FullLogo.svg" alt="Kaasi" width="160" />
+        <h1 id="storageTitle">Opening local data</h1>
+        <p id="storageStatus">Please wait while Kaasi checks your saved data.</p>
+        <div id="storageActions"></div>
+        <input type="file" id="storageRecoveryInput" accept=".json" hidden aria-label="Import recovery backup" />
+      </div>
+    </section>
+    <div id="cloudRestoreOverlay" hidden tabindex="-1" role="status" aria-live="polite" aria-atomic="true">
+      <div class="cloud-restore-message"><i class="fas fa-sync-alt fa-spin" aria-hidden="true"></i><strong>Updating Your Data…</strong><span>Please wait while your cloud copy is restored.</span></div>
+    </div>
     <div id="preloader">
       <div class="pulsing-icon-container">
         <img
@@ -190,16 +205,8 @@
               />
             </a>
           </div>
-          <div class="hidden md:flex items-stretch">
-            <button
-              id="monthlyViewBtn"
-              data-analytics="open_monthly_view"
-              class="btn btn-secondary mr-2"
-              data-tooltip="All Transactions (A)"
-            >
-              <i class="fas fa-calendar-alt"></i>
-              <span class="hidden md:inline">All Transactions</span>
-            </button>
+          <div class="desktop-header-actions hidden md:flex items-stretch">
+            <button id="headerCloudSyncBtn" class="dashboard-cloud-sync" type="button" hidden aria-label="Sync" aria-keyshortcuts="Control+S"><span id="desktopSyncStatus" class="dashboard-sync-status" role="status" aria-live="polite"></span><i class="fas fa-sync-alt" aria-hidden="true"></i></button>
 
             <!-- UPDATED HEADER SHORTCUT BUTTONS -->
             <button
@@ -239,7 +246,8 @@
 
           <!-- Mobile Dropdown Toggle Button -->
           <div class="md:hidden flex items-center ml-auto relative z-40">
-             <button id="mobileMenuBtn" class="text-gray-300 hover:text-white transition-colors focus:outline-none w-12 h-12 flex items-center justify-center">
+             <button id="mobileSyncBtn" class="mobile-dashboard-sync dashboard-cloud-sync" hidden aria-label="Sync" type="button"><span id="mobileSyncStatus" class="dashboard-sync-status" role="status" aria-live="polite"></span><i class="fas fa-sync-alt" aria-hidden="true"></i></button>
+             <button id="mobileMenuBtn" aria-label="Open menu" class="text-gray-300 hover:text-white transition-colors focus:outline-none w-12 h-12 flex items-center justify-center">
                <i class="fas fa-bars text-2xl transition-transform duration-300 ease-in-out" id="mobileMenuIcon"></i>
              </button>
           </div>
@@ -282,7 +290,7 @@
           class="grid grid-cols-1 lg:grid-cols-3 gap-6 main-content-grid"
         >
           <div class="contents lg:block lg:col-span-1 lg:space-y-6">
-            <div class="card order-1 lg:order-none">
+            <div class="card order-1 lg:order-none" id="addTransactionCard">
               <h2
                 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2"
               >
@@ -313,7 +321,7 @@
                       min="0"
                       placeholder="e.g., 1500.50"
                       required
-                    aria-label="e.g., 1500.50" />
+                    />
                     <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                       <i class="fas fa-calculator"></i>
                     </button>
@@ -336,7 +344,7 @@
                 <div id="transferFeeGroup" class="hidden">
                   <label for="transferFee" class="block text-sm font-medium mb-1">Bank Transfer Fee</label>
                   <div class="relative flex items-center w-full">
-                    <input type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8" id="transferFee" name="transferFee" step="0.01" min="0" placeholder="e.g., 25.00" aria-label="Transfer Fee">
+                    <input type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8" id="transferFee" name="transferFee" step="0.01" min="0" placeholder="e.g., 25.00">
                     <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                       <i class="fas fa-calculator"></i>
                     </button>
@@ -358,7 +366,7 @@
                     name="description"
                     placeholder="e.g., Lunch, Monthly Groceries"
                     required
-                  aria-label="e.g., Lunch, Monthly Groceries" />
+                  />
                 </div>
                 <div>
                   <label for="date" class="block text-sm font-medium mb-1"
@@ -369,9 +377,10 @@
                   <i class="fas fa-save"></i> Add Transaction
                 </button>
               </form>
+              <div id="upcomingPaymentsNotice" class="upcoming-notice" hidden></div>
             </div>
 
-            <div class="card order-3 lg:order-none hidden" id="categoryBudgetsDashboardCard">
+            <div class="card order-6 lg:order-none hidden" id="categoryBudgetsDashboardCard">
               <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
                 <h2 class="text-xl font-semibold">Category Budgets</h2>
                 <button
@@ -395,16 +404,15 @@
                 <h2 class="text-xl font-semibold">Credit Card</h2>
                 <button
                   id="ccHistoryBtn"
-                  class="btn btn-icon btn-sm"
-                  data-tooltip="View CC History"
+                  class="btn btn-secondary dashboard-view-action"
                 >
-                  <i class="fas fa-history"></i>
+                  <i class="fas fa-history" aria-hidden="true"></i> View &amp; Pay
                 </button>
               </div>
               <div class="mb-5 mt-2">
-                <div class="flex justify-between items-center mb-1.5 text-sm">
-                  <span class="text-gray-400">Limit: <span id="ccLimit">LKR 0.00</span></span>
-                  <span class="text-gray-300">Available: <span id="ccAvailable" class="font-semibold text-white">LKR 0.00</span></span>
+                <div class="cc-balance-summary mb-1.5 text-sm">
+                  <span class="cc-balance-limit text-gray-400">Limit: <span id="ccLimit">LKR 0.00</span></span>
+                  <span class="cc-balance-available text-gray-300">Available: <span id="ccAvailable" class="font-semibold text-white">LKR 0.00</span></span>
                 </div>
                 <div class="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
                   <div id="ccProgressBar" class="bg-accent-500 h-1.5 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
@@ -427,11 +435,15 @@
                       min="0"
                       placeholder="Amount spent"
                       required
-                    aria-label="Amount spent" />
+                    />
                     <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                       <i class="fas fa-calculator"></i>
                     </button>
                   </div>
+                </div>
+                <div>
+                  <label for="ccPurchaseCategory" class="block text-sm font-medium mb-1">Category (Optional)</label>
+                  <select id="ccPurchaseCategory" name="ccPurchaseCategory"><option value="">Uncategorized</option></select>
                 </div>
                 <div>
                   <label
@@ -444,7 +456,7 @@
                     name="ccDescription"
                     placeholder="e.g., Online purchase, Ride fare"
                     required
-                  aria-label="e.g., Online purchase, Ride fare" />
+                  />
                 </div>
                 <div>
                   <label for="ccDate" class="block text-sm font-medium mb-1"
@@ -460,7 +472,7 @@
           </div>
 
           <div class="contents lg:block lg:col-span-2 lg:space-y-6">
-            <div class="card order-2 lg:order-none">
+            <div class="card order-2 lg:order-none" id="balanceOverviewCard">
               <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold">Balance Overview</h2>
               </div>
@@ -488,18 +500,6 @@
                   </p>
                   <p class="text-xs text-gray-400">(Available + Owed to Me)</p>
                 </div>
-                <button
-                  id="cashCounterBtn"
-                  class="bg-gray-700 p-4 rounded-lg text-center shadow-md hover:bg-gray-600 transition duration-200 flex flex-col items-center justify-center"
-                  data-tooltip="Cash Counter"
-                >
-                  <i
-                    class="fas fa-money-bill-wave text-2xl accent-text mb-1"
-                  ></i>
-                  <span class="text-sm font-medium text-gray-300"
-                    >Cash Counter</span
-                  >
-                </button>
               </div>
               <!-- This container will be dynamically populated -->
               <div id="accountCardsContainer" class="grid gap-3 text-center">
@@ -509,7 +509,7 @@
                 class="mt-4 text-xs text-gray-300 flex flex-col sm:flex-row justify-between gap-2"
               >
                 <span id="yearlyTotals"
-                  >Yearly: Earned LKR 0.00 / Spent LKR 0.00</span
+                  >YTD: Earned LKR 0.00 / Spent LKR 0.00</span
                 >
                 <span id="quickStats"
                   >Today: LKR 0.00 <span id="todaySpendingIndicator"></span> |
@@ -517,17 +517,20 @@
                 ></span>
               </div>
             </div>
-            <div class="card order-5 lg:order-none">
-              <h2 class="text-xl font-semibold mb-4">Recent Transactions</h2>
+            <div class="card order-3 lg:order-none" id="recentTransactionsCard">
+              <div class="recent-transactions-heading">
+                <h2 class="text-xl font-semibold">Recent Transactions</h2>
+                <button id="monthlyViewBtn" type="button" data-analytics="open_monthly_view" class="btn btn-secondary dashboard-view-action" data-tooltip="All Transactions (A)"><i class="fas fa-calendar-alt" aria-hidden="true"></i><span>All Transactions</span></button>
+              </div>
               <div
                 id="recentTransactionsList"
-                class="space-y-3 max-h-80 overflow-y-auto pr-2"
+                class="space-y-3"
               >
                 <p class="text-gray-300 text-sm">No transactions yet.</p>
               </div>
 
             </div>
-            <div class="card order-6 lg:order-none" id="debtsInstallmentsCard">
+            <div class="card order-5 lg:order-none" id="debtsInstallmentsCard">
               <h2 class="text-xl font-semibold mb-4" id="debtsInstallmentsTitle">
                 Debts, Receivables & Installments
               </h2>
@@ -536,10 +539,11 @@
                   <h3
                     class="text-lg font-semibold mb-3 text-expense flex justify-between items-center"
                   >
-                    <span><i class="fas fa-arrow-down mr-2"></i>I Owe</span>
+                    <span><i class="fas fa-arrow-down mr-2"></i><span id="oweSectionLabel">I Owe</span></span>
                     <span id="totalOwed" class="text-base font-normal"
                       >Total: LKR 0.00</span
                     >
+                    <span id="subscriptionActiveSummary" class="text-base font-normal" hidden></span>
                   </h3>
                   <div class="space-y-2">
                     <button
@@ -548,17 +552,21 @@
                     >
                       <i class="fas fa-plus"></i> Add New Debt
                     </button>
+                    <button id="addSubscriptionDashboardBtn" type="button" class="btn btn-secondary btn-sm w-full" data-sub-action="add" hidden><i class="fas fa-plus" aria-hidden="true"></i> Add Subscription</button>
+                    <div class="owed-view-actions" id="owedViewActions">
                     <button
                       id="viewDebtsBtn"
                       class="btn btn-outline-expense btn-sm w-full"
-                      data-tooltip="View All Debts (D)"
+                      data-tooltip="View All Debts (Shift+D)"
                       data-analytics="open_debts"
                     >
-                      <i class="fas fa-list-ul"></i> View All Debts
+                      <i class="fas fa-list-ul"></i> Debts
                     </button>
+                    <button type="button" class="btn btn-outline-expense btn-sm" data-sub-action="open"><i class="far fa-calendar-check" aria-hidden="true"></i> Subscriptions</button>
+                    </div>
                   </div>
                 </div>
-                <div>
+                <div id="receivablesDashboardSection">
                   <h3
                     class="text-lg font-semibold mb-3 text-income flex justify-between items-center"
                   >
@@ -577,7 +585,7 @@
                     <button
                       id="viewReceivablesBtn"
                       class="btn btn-outline-income btn-sm w-full"
-                      data-tooltip="View All Receivables (R)"
+                      data-tooltip="View All Receivables (Shift+R)"
                       data-analytics="open_receivables"
                     >
                       <i class="fas fa-list-ul"></i> View All Receivables
@@ -626,6 +634,7 @@
               <div class="h-64 md:h-80 chart-container">
                 <canvas id="monthlyOverviewChart"></canvas>
               </div>
+              <div id="overviewChartData" class="chart-accessible-data"></div>
             </div>
           </div>
         </div>
@@ -655,7 +664,7 @@
             ></div>
           </div>
           <!-- Search and Filter Toggle Row -->
-          <div class="my-4 flex flex-col sm:flex-row items-center gap-x-2 gap-y-3">
+          <div class="monthly-search-controls my-4 flex flex-col sm:flex-row items-center gap-x-2 gap-y-3">
             <div class="flex-grow w-full flex items-center gap-x-2">
               <input
                 type="search"
@@ -674,7 +683,7 @@
               </button>
             </div>
             <div class="flex-shrink-0 w-full sm:w-auto">
-              <button id="toggleAdvancedFiltersBtn" class="btn btn-secondary w-full sm:w-auto relative transition-colors duration-200" data-tooltip="Advanced Filters">
+              <button id="toggleAdvancedFiltersBtn" class="btn btn-secondary w-full sm:w-auto relative transition-colors duration-200" aria-label="Filters" data-tooltip="Advanced Filters">
                 <i class="fas fa-sliders-h mr-1 filter-icon"></i> <span class="filter-text">Filters</span>
               </button>
             </div>
@@ -749,19 +758,24 @@
         </div>
       </div>
 
-      <div id="settingsModal" class="modal" role="dialog" aria-modal="true">
-        <div class="modal-content max-w-xl">
-          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('settingsModal')"
-            >&times;</span
-          >
-          <h2 class="text-2xl font-semibold mb-1 text-center">Settings</h2>
-          <div id="settingsTabNav" class="border-b border-gray-600 mb-0">
-            <ul
-              class="flex flex-nowrap overflow-x-auto hide-scrollbar edge-fade px-4 w-max max-w-full mx-auto -mb-px text-sm font-medium text-center"
-              id="settingsTabsContainer"
-            ></ul>
-          </div>
-          <div id="settingsTabContent" class="pt-6">
+      <div id="settingsModal" class="modal settings-workspace" role="dialog" aria-modal="true" aria-labelledby="settingsWorkspaceTitle">
+        <div class="modal-content settings-shell">
+          <aside class="settings-sidebar">
+            <img src="img/FullLogo.svg" alt="Kaasi" class="settings-brand" />
+            <h2>Settings</h2>
+            <nav id="settingsTabNav" aria-label="Settings sections"><ul id="settingsTabsContainer"></ul></nav>
+            <button type="button" class="settings-dashboard-link" onclick="closeModal('settingsModal')"><i class="fas fa-chevron-left" aria-hidden="true"></i> Back to Dashboard</button>
+            <p class="settings-sidebar-foot">Earn well.<br><strong>Spend responsibly.</strong></p>
+          </aside>
+          <div class="settings-main">
+            <header class="settings-topbar">
+              <button id="settingsBackBtn" type="button" onclick="SettingsWorkspace.back()"><i class="fas fa-chevron-left" aria-hidden="true"></i><span>Dashboard</span></button>
+              <span class="settings-breadcrumb">Kaasi <span>/</span> Settings</span>
+              <button type="button" class="settings-close" aria-label="Close Settings" onclick="closeModal('settingsModal')">&times;</button>
+            </header>
+            <div id="settingsMobileHub"></div>
+            <div class="settings-section-heading"><div><h2 id="settingsWorkspaceTitle">Settings</h2><p id="settingsWorkspaceDescription"></p></div><i id="settingsWorkspaceIcon" aria-hidden="true"></i></div>
+          <div id="settingsTabContent">
             <div
               id="settingsAccountsPanel"
               class="settings-tab-panel space-y-6 hidden"
@@ -771,13 +785,14 @@
                 style="background-color: var(--bg-tertiary)"
               >
                 <h3 class="text-lg font-semibold mb-3">
-                  Manage Account Names & Balances
+                  Account Names &amp; Balances
                 </h3>
                 <form id="manageAccountsForm" class="space-y-3">
+                  <div class="settings-account-columns"><span></span><span>Account Name</span><span>Balance (LKR)</span></div>
                   <div id="accountManagementList" class="space-y-3"></div>
+                  <div class="settings-account-footer">
                   <p class="text-xs text-gray-300 mt-2">
-                    Note: 'Cash' account name cannot be changed. Balances and
-                    other names can be updated.
+                    Cash keeps its name. Other account names and balances can be edited.
                   </p>
                   <button
                     type="submit"
@@ -785,13 +800,14 @@
                   >
                     Save Account Changes
                   </button>
+                  </div>
                 </form>
               </div>
               <div
                 class="card !p-4"
                 style="background-color: var(--bg-tertiary)"
               >
-                <h3 class="text-lg font-semibold mb-3">Transfer Settings</h3>
+                <h3 class="text-lg font-semibold mb-3">Transfers</h3>
                 <form id="settingsTransferFeeForm" class="space-y-3">
                   <div>
                     <label
@@ -809,7 +825,7 @@
                       placeholder="e.g., 25.00"
                       class="calc-amount text-sm rounded w-full pr-8"
                       required
-                     aria-label="Default Transfer Fee" />
+                     />
                       <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                         <i class="fas fa-calculator"></i>
                       </button>
@@ -828,6 +844,7 @@
                 style="background-color: var(--bg-tertiary)"
               >
                 <h3 class="text-lg font-semibold mb-3">Credit Card Settings</h3>
+                <p class="text-sm text-gray-300 mb-4">Track Credit Card purchases and payments separately.</p>
                 <form id="settingsCcLimitForm" class="space-y-3 mb-4">
                   <div>
                     <label
@@ -845,7 +862,7 @@
                       placeholder="Enter total limit"
                       required
                       class="calc-amount pr-8 text-sm"
-                    aria-label="Enter total limit" />
+                    />
                     <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                       <i class="fas fa-calculator"></i>
                     </button>
@@ -870,7 +887,7 @@
                       type="checkbox"
                       id="toggleCcSection"
                       class="sr-only peer"
-                    aria-label="Toggle Cc Section" />
+                    />
                     <div
                       class="w-11 h-6 bg-gray-500 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-500/50 rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
                     ></div>
@@ -887,15 +904,15 @@
                 style="background-color: var(--bg-tertiary)"
               >
                 <h3 class="text-lg font-semibold mb-3">
-                  Hidden Category Rules
+                  Rules for Hidden Categories
                 </h3>
                 <p class="text-xs text-gray-300 mb-4">
-                  Define what happens when a category is marked as "Hidden" (using the <i class="fas fa-eye-slash mx-1"></i> icon below).
+                  Choose whether hidden categories count toward charts, totals and reports.
                 </p>
                 <div class="space-y-3" id="hiddenCategoryRulesContainer">
                   <!-- Primary Rules -->
                   <div class="flex items-center justify-between">
-                    <label class="text-sm font-medium text-gray-300">Hide from Dashboard Charts</label>
+                    <label class="text-sm font-medium text-gray-300">Exclude from Dashboard Charts</label>
                     <label class="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" id="rule_excludeFromDashboardCharts" class="sr-only peer" onchange="toggleHiddenRule('excludeFromDashboardCharts')" aria-label="Rule_exclude From Dashboard Charts">
                       <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
@@ -918,28 +935,28 @@
                     </button>
                     <div id="advancedRulesContainer" class="hidden p-3 space-y-3 advanced-rules-content">
                       <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-300">Hide from Monthly Breakdown Totals</label>
+                        <label class="text-sm font-medium text-gray-300">Exclude from Monthly Breakdown Totals</label>
                         <label class="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" id="rule_excludeFromMonthlyTotals" class="sr-only peer" onchange="toggleHiddenRule('excludeFromMonthlyTotals')" aria-label="Rule_exclude From Monthly Totals">
                           <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                         </label>
                       </div>
                       <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-300">Hide from Monthly Pie Chart</label>
+                        <label class="text-sm font-medium text-gray-300">Exclude from Monthly Pie Chart</label>
                         <label class="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" id="rule_excludeFromPieChart" class="sr-only peer" onchange="toggleHiddenRule('excludeFromPieChart')" aria-label="Rule_exclude From Pie Chart">
                           <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                         </label>
                       </div>
                       <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-300">Hide from Today/Past 7 Days Stats</label>
+                        <label class="text-sm font-medium text-gray-300">Exclude from Today/Past 7 Days Stats</label>
                         <label class="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" id="rule_excludeFromQuickStats" class="sr-only peer" onchange="toggleHiddenRule('excludeFromQuickStats')" aria-label="Rule_exclude From Quick Stats">
                           <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
                         </label>
                       </div>
                       <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-300">Hide from Yearly Totals</label>
+                        <label class="text-sm font-medium text-gray-300">Exclude from Yearly Totals</label>
                         <label class="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" id="rule_excludeFromYearlyTotals" class="sr-only peer" onchange="toggleHiddenRule('excludeFromYearlyTotals')" aria-label="Rule_exclude From Yearly Totals">
                           <div class="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
@@ -961,7 +978,7 @@
                 style="background-color: var(--bg-tertiary)"
               >
                 <h3 class="text-lg font-semibold mb-3">
-                  Manage Expense Categories
+                  Expense Categories
                 </h3>
                 <form id="addCategoryForm" class="flex gap-2 mb-3">
                   <input
@@ -975,7 +992,9 @@
                     Add
                   </button>
                 </form>
+                <p class="text-xs text-gray-300 mb-4">Hidden categories remain in your transaction history. Use the rules below to choose whether they count toward charts, totals and reports.</p>
                 <ul id="categorySettingsList" class="space-y-2"></ul>
+                <div class="settings-list-footer"><button type="button" class="btn btn-primary" onclick="openModalHelper('settingsAddCategoryModal')"><i class="fas fa-plus" aria-hidden="true"></i> Add Category</button></div>
               </div>
             </div>
             
@@ -987,7 +1006,7 @@
                 class="card !p-4"
                 style="background-color: var(--bg-tertiary)"
               >
-                <h3 class="text-lg font-semibold mb-3">Add Budget</h3>
+                <h2 id="settingsAddBudgetTitle" class="text-lg font-semibold mb-3">Add Budget</h2>
                 <form id="addBudgetForm" class="space-y-4">
                   <div>
                     <label class="block text-sm font-medium mb-1">Select Categories</label>
@@ -996,13 +1015,13 @@
                     </div>
                   </div>
                   <div>
-                    <label class="block text-sm font-medium mb-1">Budget Name <span class="text-xs text-gray-300 font-normal">(Optional if selecting a single category)</span></label>
-                    <input type="text" id="addBudgetName" placeholder="e.g. Groceries" class="w-full text-sm" aria-label="e.g. Groceries">
+                    <label for="addBudgetName" class="block text-sm font-medium mb-1">Budget Name</label>
+                    <input type="text" id="addBudgetName" placeholder="e.g. Groceries" class="w-full text-sm">
                   </div>
                   <div>
-                    <label class="block text-sm font-medium mb-1">Monthly Limit (LKR)</label>
+                    <label for="addBudgetLimit" class="block text-sm font-medium mb-1">Monthly Limit (LKR)</label>
                     <div class="relative flex items-center w-full">
-                      <input type="text" inputmode="decimal" autocomplete="off" id="addBudgetLimit" class="calc-amount w-full pr-8 text-sm" placeholder="e.g. 15000.00" required step="0.01" min="0" aria-label="e.g. 15000.00">
+                      <input type="text" inputmode="decimal" autocomplete="off" id="addBudgetLimit" class="calc-amount w-full pr-8 text-sm" placeholder="e.g. 15000.00" required step="0.01" min="0">
                       <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                         <i class="fas fa-calculator"></i>
                       </button>
@@ -1015,7 +1034,7 @@
                 class="card !p-4"
                 style="background-color: var(--bg-tertiary)"
               >
-                <div class="flex justify-between items-center mb-3 gap-2">
+                <div class="budget-list-heading flex justify-between items-center mb-3 gap-2">
                   <h3 class="text-lg font-semibold whitespace-nowrap">Active Budgets</h3>
                   <select id="budgetSortOrderSelect" class="text-xs pl-2 pr-8 py-1.5 transition-colors focus:outline-none bg-tertiary border border-theme rounded-md w-auto cursor-pointer appearance-none" style="background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%239CA3AF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 0.5rem top 50%; background-size: 0.65em auto;" aria-label="Budget Sort Order Select">
                     <option value="added">Order Added</option>
@@ -1028,6 +1047,7 @@
                 <div id="activeBudgetsList" class="space-y-3">
                   <p class="text-xs text-gray-300">No active budgets.</p>
                 </div>
+                <div class="settings-list-footer"><p class="text-xs text-gray-400">Spending resets each calendar month.</p><button type="button" class="btn btn-primary" onclick="openModalHelper('settingsAddBudgetModal')"><i class="fas fa-plus" aria-hidden="true"></i> Add Budget</button></div>
               </div>
             </div>
 
@@ -1051,6 +1071,15 @@
                     <p id="storageSizeInfo" class="text-xs text-gray-400 mt-0.5 font-medium">Calculating...</p>
                   </div>
                 </div>
+                <div id="storageProtectionSection" class="storage-protection" hidden>
+                  <div class="storage-protection-row">
+                    <div class="storage-protection-copy">
+                      <h4>Protect Saved Data</h4>
+                      <p id="persistenceStatus" class="storage-protection-status" aria-live="polite"></p>
+                    </div>
+                    <button id="requestPersistenceBtn" type="button" class="btn btn-secondary" hidden>Enable Protection</button>
+                  </div>
+                </div>
               </div>
 
               <!-- 2. Cloud Backup -->
@@ -1067,7 +1096,7 @@
                     cloud. This allows you to restore your data on any device.
                   </p>
                   <button id="googleLoginBtn" class="btn btn-primary w-full">
-                    <i class="fab fa-google mr-2"></i> Sign In with Google
+                    <i class="fab fa-google mr-2"></i> Sign In With Google
                   </button>
                 </div>
 
@@ -1079,25 +1108,24 @@
                       >...</strong
                     >
                   </p>
-                  <p id="lastCloudBackupTime" class="text-xs text-gray-300 -mt-2">Last backed up: Fetching...</p>
+                  <p id="lastCloudBackupTime" class="text-xs text-gray-300 -mt-2">Last backed up: Checking…</p>
+                  <div class="cloud-auto-control">
+                    <div><strong>Automatic Sync</strong><p id="automaticSyncDescription">Changes sync automatically when you’re online.</p></div>
+                    <button id="pauseAutomaticSyncBtn" type="button" class="btn btn-secondary"><i class="fas fa-pause" aria-hidden="true"></i> Pause</button>
+                  </div>
+                  <div id="pausedCloudActions" class="cloud-paused-actions" hidden>
+                    <p id="pausedSyncWarning" class="cloud-paused-hint"></p>
+                    <button id="reviewPausedCopiesBtn" type="button" class="btn btn-secondary">Review Copies</button>
+                    <div class="cloud-manual-actions"><button id="manualCloudUploadBtn" type="button" class="btn btn-secondary"><i class="fas fa-cloud-upload-alt" aria-hidden="true"></i> Upload to Cloud</button><button id="manualCloudRestoreBtn" type="button" class="btn btn-secondary"><i class="fas fa-cloud-download-alt" aria-hidden="true"></i> Restore from Cloud</button></div>
+                    <button id="resumeAutomaticSyncBtn" type="button" class="btn btn-primary"><i class="fas fa-play" aria-hidden="true"></i> Resume Automatic Sync</button>
+                  </div>
                   <div class="flex flex-col sm:flex-row gap-3">
-                    <button
-                      id="backupToSupabaseBtn"
-                      class="btn btn-primary flex-1"
-                    >
-                      <i class="fas fa-cloud-upload-alt mr-2"></i> Export to
-                      Cloud
-                    </button>
-                    <button
-                      id="restoreFromSupabaseBtn"
-                      class="btn btn-secondary flex-1"
-                    >
-                      <i class="fas fa-cloud-download-alt mr-2"></i> Import from
-                      Cloud
+                    <button id="syncCloudBtn" class="btn btn-primary flex-1" type="button" data-tooltip="Sync (Ctrl+S)" aria-keyshortcuts="Control+S">
+                      <i class="fas fa-sync-alt mr-2"></i> Sync
                     </button>
                   </div>
 
-                  <button id="googleLogoutBtn" class="btn btn-secondary w-full">
+                  <button id="googleLogoutBtn" class="btn btn-secondary w-full" aria-label="Sign Out" title="Sign Out">
                     <i class="fas fa-sign-out-alt mr-1"></i> Sign Out
                   </button>
                 </div>
@@ -1109,7 +1137,7 @@
                 style="background-color: var(--bg-tertiary)"
               >
                 <h3 class="text-lg font-semibold mb-3">
-                  Local Data Management
+                  Local Backups
                 </h3>
 
                 <div class="flex flex-col sm:flex-row gap-3">
@@ -1123,12 +1151,8 @@
                       id="importDataInput"
                       accept=".json"
                       class="hidden"
-                  aria-label="Import Data Input" /></label>
+                  /></label>
                 </div>
-                <p class="text-xs text-gray-300 mt-2">
-                  Exports create a local backup file. Imports overwrite existing
-                  data from a local file.
-                </p>
                 <p class="text-xs text-red-400 mt-1">
                   Warning: Browser data can be lost. Export backups regularly!
                 </p>
@@ -1139,22 +1163,22 @@
                 <div class="flex flex-col mb-3">
                   <h3 class="text-lg font-semibold">Quick Action Shortcut</h3>
                   <p class="text-xs text-gray-400 mt-1">
-                    Sets the default target for Dashboard buttons & <kbd class="px-1.5 py-0.5 rounded bg-secondary border border-gray-700 font-mono text-gray-200">Ctrl+E</kbd> / <kbd class="px-1.5 py-0.5 rounded bg-secondary border border-gray-700 font-mono text-gray-200">Ctrl+I</kbd>
+                    Choose between local file actions and cloud Sync on the Dashboard.
                   </p>
                 </div>
                 
                 <div class="flex p-1 bg-secondary rounded-lg border border-gray-700" id="shortcutTargetGroup">
                   <label class="flex-1 text-center cursor-pointer m-0">
-                    <input type="radio" id="shortcutLocal" name="shortcutTarget" value="local" class="peer sr-only" checked aria-label="Shortcut Local" />
+                    <input type="radio" id="shortcutLocal" name="shortcutTarget" value="local" class="peer sr-only" checked />
                     <div class="py-2 text-sm font-medium rounded-md text-gray-400 transition-all duration-200 peer-checked:bg-accent-primary peer-checked:text-white peer-checked:shadow-sm hover:text-gray-200 peer-checked:hover:text-white">
                       <i class="fas fa-file-alt mr-1"></i> Local File
                     </div>
                   </label>
                   
                   <label class="flex-1 text-center cursor-pointer m-0 transition-opacity duration-200" id="shortcutCloudLabel">
-                    <input type="radio" id="shortcutCloud" name="shortcutTarget" value="cloud" class="peer sr-only" disabled aria-label="Shortcut Cloud" />
+                    <input type="radio" id="shortcutCloud" name="shortcutTarget" value="cloud" class="peer sr-only" disabled />
                     <div class="py-2 text-sm font-medium rounded-md text-gray-400 transition-all duration-200 peer-checked:bg-accent-primary peer-checked:text-white peer-checked:shadow-sm hover:text-gray-200 peer-checked:hover:text-white">
-                      <i class="fas fa-cloud mr-1"></i> Cloud Backup
+                      <i class="fas fa-cloud mr-1"></i> Cloud Sync
                     </div>
                   </label>
                 </div>
@@ -1163,12 +1187,12 @@
               <!-- 4. Backup Reminders -->
               <div class="card !p-4" style="background-color: var(--bg-tertiary)">
                 <h3 class="text-lg font-semibold mb-3">Backup Reminders</h3>
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="settings-reminder-row flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <label for="settingsBackupReminderFreq" class="block text-sm font-medium text-gray-300">Local Export Reminder</label>
                     <p class="text-xs text-gray-300 mt-1">Alerts you to save an offline backup file if you haven't exported one recently.</p>
                   </div>
-                  <select id="settingsBackupReminderFreq" class="w-full sm:w-[220px] mt-2 sm:mt-0 flex-shrink-0" aria-label="Settings Backup Reminder Freq">
+                  <select id="settingsBackupReminderFreq" class="w-full sm:w-[220px] mt-2 sm:mt-0 flex-shrink-0">
                     <option value="default">Auto (Smart Schedule)</option>
                     <option value="3">Every 3 Days</option>
                     <option value="7">Weekly (7 Days)</option>
@@ -1231,12 +1255,12 @@
                 <h3 class="text-lg font-semibold mb-3">Theme</h3>
                 <div class="flex gap-4">
                   <button id="themeDarkBtn" class="flex-1 btn btn-secondary flex flex-col items-center justify-center p-4 rounded-lg border-2 border-transparent transition-colors">
-                    <i class="fas fa-moon text-2xl mb-2"></i>
-                    <span class="font-medium">Dark Mode</span>
+                    <span class="settings-theme-thumb" aria-hidden="true"></span>
+                    <span class="settings-theme-label">Dark Mode <i class="fas fa-check" aria-hidden="true"></i></span>
                   </button>
                   <button id="themeLightBtn" class="flex-1 btn btn-secondary flex flex-col items-center justify-center p-4 rounded-lg border-2 border-transparent transition-colors">
-                    <i class="fas fa-sun text-2xl mb-2 text-yellow-500"></i>
-                    <span class="font-medium">Light Mode</span>
+                    <span class="settings-theme-thumb settings-theme-light" aria-hidden="true"></span>
+                    <span class="settings-theme-label">Light Mode <i class="fas fa-check" aria-hidden="true"></i></span>
                   </button>
                 </div>
               </div>
@@ -1260,17 +1284,6 @@
                 class="card !p-4 space-y-4 bg-tertiary"
               >
                 <h3 class="text-base font-semibold border-b border-gray-600 pb-2 mb-2">Customize Dashboard</h3>
-                
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h4 class="text-sm font-medium">Hide Cash Counter</h4>
-                    <p class="text-xs text-gray-300">Remove the Cash Counter from the dashboard</p>
-                  </div>
-                  <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="toggleHideCashCounter" class="sr-only peer" aria-label="Toggle Hide Cash Counter">
-                    <div class="w-11 h-6 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                  </label>
-                </div>
 
                 <div class="flex items-center justify-between">
                   <div>
@@ -1331,12 +1344,12 @@
                 <div id="securityInlineSetup" class="hidden space-y-4 pt-4 border-t border-gray-600">
                   <div class="space-y-3">
                     <div>
-                      <label class="block text-sm font-medium mb-1">New 4-Digit PIN</label>
-                      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setupPinInput" class="w-full masked-pin" placeholder="e.g. 1234" aria-label="e.g. 1234">
+                      <label for="setupPinInput" class="block text-sm font-medium mb-1">New 4-Digit PIN</label>
+                      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setupPinInput" class="w-full masked-pin" placeholder="e.g. 1234">
                     </div>
                     <div>
-                      <label class="block text-sm font-medium mb-1">Confirm PIN</label>
-                      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setupPinConfirm" class="w-full masked-pin" placeholder="Confirm 4 digits" aria-label="Confirm 4 digits">
+                      <label for="setupPinConfirm" class="block text-sm font-medium mb-1">Confirm PIN</label>
+                      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" id="setupPinConfirm" class="w-full masked-pin" placeholder="Confirm 4 digits">
                     </div>
                     <div>
                       <label class="block text-sm font-medium mb-1">Security Question</label>
@@ -1433,13 +1446,95 @@
               </div>
             </div>
             <!-- END: SECURITY PANEL -->
-
+            <div id="settingsSubscriptionsPanel" class="settings-tab-panel hidden"><div id="settingsSubscriptionHost"></div></div>
+            <div id="settingsDonatePanel" class="settings-tab-panel hidden">
+              <div class="card settings-donate-card">
+        <h3>
+          Thank You for Supporting Kaasi!
+        </h3>
+        <p class="text-secondary">
+          Your donation helps keep Kaasi free and in active development. Since
+          the AI subscriptions used for development are quite expensive, and I
+          want to keep Kaasi free for everyone, your kind support is greatly
+          appreciated!
+        </p>
+        <div class="donate-bank-details-vertical mt-[1.6rem]">
+          <div class="donate-bank-block">
+            <div class="bank-title accent-text">HNB (Negombo)</div>
+            <div class="bank-pair">
+              <span class="bank-label">Number:</span>
+              <span class="bank-value">0240 2065 9091</span>
+              <button
+                class="copy-button"
+                data-copy-text="024020659091"
+                aria-label="Copy HNB Account Number"
+              >
+                <i class="far fa-copy"></i>
+              </button>
+            </div>
+            <div class="bank-pair">
+              <span class="bank-label">Name:</span>
+              <span class="bank-value">MALSW Goonaratne</span>
+            </div>
           </div>
+          <div class="donate-bank-block">
+            <div class="bank-title accent-text">Commercial (Negombo 2)</div>
+            <div class="bank-pair">
+              <span class="bank-label">Number:</span>
+              <span class="bank-value">8009 650 486</span>
+              <button
+                class="copy-button"
+                data-copy-text="8009650486"
+                aria-label="Copy Commercial Account Number"
+              >
+                <i class="far fa-copy"></i>
+              </button>
+            </div>
+            <div class="bank-pair">
+              <span class="bank-label">Name:</span>
+              <span class="bank-value">MALSW Goonaratne</span>
+            </div>
+          </div>
+        </div>
+        <p class="text-sm text-secondary mt-[1.3rem]">
+          Every contribution makes a difference. ❤️
+        </p>
+              </div>
+            </div>
+            <div id="settingsMilestonesPanel" class="settings-tab-panel hidden"><div id="milestoneCards"></div></div>
+            <div id="settingsCashCounterPanel" class="settings-tab-panel hidden"><div class="card cash-counter-settings">
+<form id="cashCounterForm">
+            <div class="cash-counter-toolbar"><button type="button" class="cash-reset" onclick="resetCashCounts()"><i class="fas fa-rotate-left" aria-hidden="true"></i> Reset Counts</button></div>
+            <div class="grid grid-cols-3 gap-x-2 gap-y-3 items-center mb-4">
+              <span class="font-semibold text-sm text-gray-300"
+                >Value</span
+              >
+              <span class="font-semibold text-sm text-gray-300 text-center"
+                >Count</span
+              >
+              <span class="font-semibold text-sm text-gray-300 text-right"
+                >Total (LKR)</span
+              >
+            </div>
+            <div
+              class="cash-counter-summary"
+            >
+              <span>Cash Counted</span>
+              <span id="cashCounterTotal" class="accent-text">LKR 0.00</span>
+            </div>
+          </form>
+          <div
+            id="cashCounterComparison"
+            class="text-sm text-center mt-3"
+          ></div>
+            </div></div>
+            <div id="settingsAboutPanel" class="settings-tab-panel hidden">
+          <div class="onboard-replay"><span><strong>New to Kaasi?</strong><small>Replay the short, data-free tour anytime.</small></span><button type="button" class="btn btn-secondary" onclick="Onboarding.openTutorial()"><i class="fas fa-play-circle" aria-hidden="true"></i> Take a Tour</button></div>
           <div
             id="settingsAboutSection"
             class="mt-8 pt-6 border-t border-gray-600 text-xs text-gray-300 space-y-2 text-center"
           >
-            <p>Made by Aanjelo Salgado using Gemini AI.</p>
+            <p>Created by Aanjelo Salgado with Antigravity and Codex.</p>
             <p>
               If you encounter any bugs, please send them over to
               <a
@@ -1461,13 +1556,8 @@
             </p>
             <div class="max-w-lg mx-auto">
               <p>
-                This was made and refined using AI. All data are handled
-                locally. This cannot be automatically synced to a different
-                device, unless cloud backups are enabled.
-              </p>
-              <p>
                 Make sure to back up the data from time to time. You will receive
-                automatic reminders based on your chosen interval in the Data settings.
+                automatic reminders based on your chosen interval in Data &amp; Backups.
               </p>
             </div>
             <p class="font-semibold mt-2">Earn Well And Spend Responsibly!</p>
@@ -1483,197 +1573,36 @@
               <p id="appVersionSettings" class="text-gray-400 text-xs"></p>
               <div class="max-w-2xl mx-auto">
                 <p class="font-semibold text-gray-300 mt-2">
-                  For optimal performance and to prevent data loss due to
-                  browser storage limits, we recommend backing up your data
-                  regularly. Consider starting fresh after 1-2 years of use. If
-                  you notice an update to the app, exporting and re-importing
-                  your data can help ensure all features function correctly with
-                  the new version.
+                  Keep regular local or cloud backups. Persistent storage can
+                  reduce automatic browser cleanup when granted, but clearing
+                  site data or losing access to this device can still remove
+                  local records.
                 </p>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div id="initialSetupModal" class="modal z-[60]">
-        <div class="modal-content max-w-2xl">
-          <h2
-            class="text-2xl font-semibold mb-2 text-center accent-text flex justify-center items-center"
-          >
-            Welcome to
-            <img
-              src="img/LogoType.svg"
-              alt="Kaasi Text Logo"
-              class="h-8 ml-2 inline-block theme-logo-type"
-              onerror="this.onerror=null; this.src='https://placehold.co/120x30/e67e26/white?text=Kaasi&font=satoshi';"
-            />
-          </h2>
-          <p class="text-sm text-gray-300 mb-6 text-center">
-            Let's get your expense tracker set up.
-          </p>
-
-          <div class="mb-6">
-            <div class="card !p-4 border-2 border-dashed border-gray-600 bg-[var(--bg-tertiary)] flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div class="text-center sm:text-left flex-grow">
-                <h3 class="text-sm font-semibold text-[var(--text-primary)]">Already have data?</h3>
-                <p class="text-xs text-gray-300 mt-1">Sign in or import a backup file to instantly restore your data and skip this setup.</p>
-              </div>
-              <div class="flex flex-row gap-2 w-full sm:w-auto shrink-0 justify-center">
-                <button type="button" id="setupCloudLoginBtn" class="btn btn-secondary text-sm flex-1 sm:flex-none justify-center m-0 whitespace-nowrap">
-                  <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" class="w-4 h-4 mr-2 inline-block" />
-                  Cloud Restore
-                </button>
-                <label class="btn btn-secondary text-sm cursor-pointer flex-1 sm:flex-none justify-center m-0 whitespace-nowrap">
-                  <i class="fas fa-file-import mr-2"></i>Local File
-                  <input type="file" id="setupImportInput" accept=".json" class="hidden" aria-label="Setup Import Input" />
-                </label>
-              </div>
+          <div class="card" id="settingsLicensesCard">
+            <h3>Licenses &amp; Acknowledgments</h3>
+            <p>Open-source tools that help power Kaasi.</p>
+            <div class="settings-license-list">
+              <div><span><strong>Chart.js</strong><small>Charts and spending visualizations.</small></span><a href="licenses/chartjs.txt" target="_blank" rel="noopener noreferrer" aria-label="Read Chart.js license" title="Read Chart.js license"><i class="fas fa-file-alt" aria-hidden="true"></i></a></div>
+              <div><span><strong>jsPDF</strong><small>PDF report exports.</small></span><a href="licenses/jspdf.txt" target="_blank" rel="noopener noreferrer" aria-label="Read jsPDF license" title="Read jsPDF license"><i class="fas fa-file-alt" aria-hidden="true"></i></a></div>
+              <div><span><strong>Supabase JavaScript Client</strong><small>Cloud sign-in and backup synchronization.</small></span><a href="licenses/supabase-js.txt" target="_blank" rel="noopener noreferrer" aria-label="Read Supabase JavaScript Client license" title="Read Supabase JavaScript Client license"><i class="fas fa-file-alt" aria-hidden="true"></i></a></div>
+              <div><span><strong>Tailwind CSS</strong><small>Interface styling utilities.</small></span><a href="licenses/tailwindcss.txt" target="_blank" rel="noopener noreferrer" aria-label="Read Tailwind CSS license" title="Read Tailwind CSS license"><i class="fas fa-file-alt" aria-hidden="true"></i></a></div>
+              <div><span><strong>Font Awesome Free</strong><small>Interface icons.</small></span><a href="licenses/font-awesome.txt" target="_blank" rel="noopener noreferrer" aria-label="Read Font Awesome Free license" title="Read Font Awesome Free license"><i class="fas fa-file-alt" aria-hidden="true"></i></a></div>
             </div>
-          </div>
-
-          <form id="initialSetupForm" class="space-y-6">
-            <div class="card !p-4 bg-tertiary">
-              <h3 class="text-lg font-semibold mb-3">1. Account Setup</h3>
-              <p class="text-xs text-gray-300 mb-3">
-                Set initial balances. You can rename bank accounts and toggle
-                their visibility. "Cash" is fixed. Leave balance blank or 0 if
-                not applicable.
-              </p>
-              <div id="setupAccountBalances" class="space-y-3"></div>
-            </div>
-            <div class="card !p-4 bg-tertiary">
-              <h3 class="text-lg font-semibold mb-3">2. Credit Card Setup</h3>
-              <div class="flex items-center justify-between mb-3">
-                <label
-                  for="setupEnableCc"
-                  class="text-sm font-medium text-gray-300"
-                  >Enable Credit Card Tracking?</label
-                >
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="setupEnableCc"
-                    name="setupEnableCc"
-                    class="sr-only peer"
-                    checked
-                  aria-label="Setup Enable Cc" />
-                  <div
-                    class="w-11 h-6 bg-gray-500 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-accent-500/50 rounded-full peer peer-checked:bg-accent-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
-                  ></div>
-                </label>
-              </div>
-              <div id="setupCcLimitGroup">
-                <label for="setupCcLimit" class="block text-sm font-medium mb-1"
-                  >Credit Card Limit (LKR)</label
-                >
-                <div class="relative flex items-center w-full">
-                <input
-                  type="text" inputmode="decimal" autocomplete="off" class="calc-amount pr-8 text-sm"
-                  id="setupCcLimit"
-                  name="setupCcLimit"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g., 100000"
-                aria-label="e.g., 100000" />
-                <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
-                  <i class="fas fa-calculator"></i>
-                </button>
-              </div>
-              </div>
-            </div>
-            <div class="card !p-4 bg-tertiary">
-              <h3 class="text-lg font-semibold mb-3">3. Expense Categories</h3>
-              <p class="text-xs text-gray-300 mb-3">
-                Review and customize your starting categories. You can manage
-                these later in Settings.
-              </p>
-              <div id="setupCategoriesList" class="space-y-2"></div>
-              <div class="flex gap-2 mt-3">
-                <input
-                  type="text"
-                  id="setupNewCategoryName"
-                  placeholder="Add custom category"
-                  class="flex-grow text-sm"
-                aria-label="Add custom category" />
-                <button
-                  type="button"
-                  id="setupAddCategoryBtn"
-                  class="btn btn-secondary btn-sm"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-            <div class="pt-4">
-              <button
-                type="submit"
-                class="btn btn-primary w-full text-base py-3"
-              >
-                <i class="fas fa-check-circle mr-2"></i>Save Setup & Get Started
-              </button>
-            </div>
-          </form>
-
-
-          <div
-            class="mt-8 pt-6 border-t border-gray-600 text-xs text-gray-300 space-y-2 text-center"
-          >
-            <p>Made by Aanjelo Salgado using Gemini AI.</p>
-            <p>
-              If you encounter any bugs, please send them over to
-              <a
-                href="mailto:aanjelo99@gmail.com"
-                class="text-info hover:underline"
-              >
-                aanjelo99@gmail.com
-              </a>
-              or
-              <a
-                href="https://www.instagram.com/aanjelo.s"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-info hover:underline"
-              >
-                @aanjelo.s
-              </a>
-              on Instagram.
-            </p>
-            <div class="max-w-lg mx-auto">
-              <p>
-                This was made and refined using AI. All data are handled
-                locally. This cannot be automatically synced to a different
-                device, unless cloud backups are enabled.
-              </p>
-              <p>
-                Make sure to back up the data from time to time. You will receive
-                automatic reminders based on your chosen interval in the Data settings.
-              </p>
-            </div>
-            <p class="font-semibold mt-2">Earn Well And Spend Responsibly!</p>
-            <div class="mt-4 flex justify-center flex-col items-center">
-              <img
-                src="img/AanjeloNoText.svg"
-                alt="Aanjelo Salgado Logo"
-                class="h-8 mb-2 theme-logo-type"
-                onerror="this.onerror=null; this.src='https://placehold.co/80x32/e67e26/white?text=AS&font=satoshi';"
-              />
-              <hr class="w-1/4 my-2 border-gray-600" />
-              <p id="appVersionSetup" class="text-gray-400 text-xs"></p>
-              <div class="max-w-2xl mx-auto">
-                <p class="font-semibold text-gray-300 mt-2">
-                  For optimal performance and to prevent data loss due to
-                  browser storage limits, we recommend backing up your data
-                  regularly. Consider starting fresh after 1-2 years of use. If
-                  you notice an update to the app, exporting and re-importing
-                  your data can help ensure all features function correctly with
-                  the new version.
-                </p>
-              </div>
-            </div>
+            <p class="settings-license-trademarks">Third-party names and logos belong to their respective owners and identify supported services. Their inclusion does not imply affiliation or endorsement.</p>
           </div>
         </div>
       </div>
+
+      </div></div></div>
+
+      <div id="settingsAddCategoryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsAddCategoryTitle"><div class="modal-content settings-editor-content"><button type="button" class="modal-close" aria-label="Close modal" onclick="closeModal('settingsAddCategoryModal')">&times;</button><h2 id="settingsAddCategoryTitle">Add Category</h2><div id="settingsAddCategoryHost"></div></div></div>
+      <div id="settingsAddBudgetModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsAddBudgetTitle"><div class="modal-content settings-editor-content"><button type="button" class="modal-close" aria-label="Close modal" onclick="closeModal('settingsAddBudgetModal')">&times;</button><div id="settingsAddBudgetHost"></div></div></div>
+
+      <div id="initialSetupModal" class="modal" role="dialog" aria-modal="true" aria-label="Kaasi setup"><div class="modal-content" tabindex="-1"></div></div>
+      <div id="kaasiTutorialModal" class="modal" role="dialog" aria-modal="true" aria-label="Kaasi tour"><div class="modal-content" tabindex="-1"></div></div>
 
       <div id="formModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-lg">
@@ -1723,7 +1652,7 @@
           </div>
 
           <!-- Search & Filters -->
-          <div class="my-4 flex flex-col sm:flex-row items-center gap-2">
+          <div id="ccHistoryToolbar" class="my-4 flex flex-col sm:flex-row items-center gap-2">
             <div class="flex-grow w-full flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <div class="flex-grow w-full flex items-center gap-x-2">
                 <input type="search" id="ccHistorySearchInput" name="ccHistorySearch" placeholder="Search description or amount..." class="flex-grow bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm outline-none text-white focus:border-accent-500 transition-colors" aria-label="Search description or amount..." />
@@ -1737,6 +1666,7 @@
               <button data-filter="unpaid" class="btn btn-secondary active flex-1 sm:flex-none">Unpaid</button>
               <button data-filter="paid" class="btn btn-secondary flex-1 sm:flex-none">Settled</button>
             </div>
+            <button type="button" id="ccSelectMultipleBtn" class="btn btn-secondary" aria-label="Select Multiple" title="Select Multiple" aria-pressed="false"><i class="fas fa-tasks" aria-hidden="true"></i><span>Select</span></button>
           </div>
 
           <!-- Flat List Container -->
@@ -1754,37 +1684,16 @@
         </div>
       </div>
 
-      <div id="cashCounterModal" class="modal" role="dialog" aria-modal="true">
-        <div class="modal-content max-w-md">
-          <span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('cashCounterModal')"
-            >&times;</span
-          >
-          <h2 class="text-2xl font-semibold mb-4 text-center">Cash Counter</h2>
-          <form id="cashCounterForm">
-            <div class="grid grid-cols-3 gap-x-2 gap-y-3 items-center mb-4">
-              <span class="font-semibold text-sm text-gray-300"
-                >Denomination</span
-              >
-              <span class="font-semibold text-sm text-gray-300 text-center"
-                >Count</span
-              >
-              <span class="font-semibold text-sm text-gray-300 text-right"
-                >Total</span
-              >
-            </div>
-            <div
-              class="text-right font-bold text-xl my-4 border-t border-gray-600 pt-3"
-            >
-              Grand Total:
-              <span id="cashCounterTotal" class="accent-text">LKR 0.00</span>
-            </div>
-          </form>
-          <div
-            id="cashCounterComparison"
-            class="text-sm text-center mt-3"
-          ></div>
+      <div id="subscriptionsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="subscriptionsTitle">
+        <div class="modal-content subscriptions-content">
+          <div class="subscription-manager-heading"><h2 id="subscriptionsTitle">Subscriptions</h2><button type="button" class="modal-close" aria-label="Close modal" onclick="closeModal('subscriptionsModal')">&times;</button></div>
+          <div class="subscription-toolbar"><input type="search" id="subscriptionSearch" placeholder="Search subscriptions" aria-label="Search subscriptions" oninput="Subscriptions.onSearch(this.value)"><select id="subscriptionFilter" aria-label="Subscription status" onchange="Subscriptions.onFilter(this.value)"><option value="active">Active</option><option value="paused">Paused</option></select><button type="button" class="btn btn-primary" data-sub-action="add"><i class="fas fa-plus" aria-hidden="true"></i> Add New</button></div>
+          <div id="subscriptionList" class="subscription-list custom-scrollbar"></div>
         </div>
       </div>
+      <div id="upcomingPaymentsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="upcomingPaymentsTitle"><div class="modal-content subscriptions-content"><span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('upcomingPaymentsModal')">&times;</span><h2 id="upcomingPaymentsTitle">Upcoming Payments</h2><div id="upcomingPaymentList" class="subscription-list custom-scrollbar"></div><button type="button" class="btn btn-secondary w-full" data-sub-action="open">Manage Subscriptions</button></div></div>
+      <div id="subscriptionReminderModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="subscriptionReminderTitle"><div class="modal-content subscriptions-content"><span class="modal-close" aria-label="Close modal" role="button" tabindex="0" onclick="closeModal('subscriptionReminderModal')">&times;</span><h2 id="subscriptionReminderTitle">Were These Paid?</h2><div id="subscriptionReminderList" class="subscription-list custom-scrollbar"></div></div></div>
+
 
       <div id="debtsViewModal" class="modal" role="dialog" aria-modal="true">
         <div class="modal-content max-w-2xl">
@@ -1812,6 +1721,46 @@
             class="space-y-3 max-h-[70vh] overflow-y-auto pr-2"
           >
             <p class="text-gray-300 text-sm">Loading receivables...</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="cloudSyncModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudSyncTitle">
+        <div class="modal-content cloud-sync-content">
+          <button class="modal-close" type="button" aria-label="Close comparison" onclick="closeModal('cloudSyncModal')">&times;</button>
+          <div class="sync-review-heading">
+            <div class="sync-review-symbol" aria-hidden="true"><i class="fas fa-arrows-rotate"></i></div>
+            <div>
+              <h2 id="cloudSyncTitle">Which Copy Should We Keep?</h2>
+              <p>Review the differences, then choose a copy.</p>
+            </div>
+          </div>
+          <div class="sync-review-body">
+            <div id="cloudSyncSummary" class="sync-counts" aria-live="polite">
+              <span><strong id="cloudSyncDeviceCount"></strong><span>Device Only</span></span>
+              <span><strong id="cloudSyncCloudCount"></strong><span>Cloud Only</span></span>
+              <span><strong id="cloudSyncChangedCount"></strong><span>Changed</span></span>
+            </div>
+            <div class="sync-table-frame">
+              <table class="sync-comparison-table" aria-label="Differences between this device and the cloud">
+                <colgroup><col class="sync-entry-column" /><col /><col /></colgroup>
+                <thead><tr><th scope="col">Entry</th><th scope="col"><i class="fas fa-laptop" aria-hidden="true"></i> This Device</th><th scope="col"><i class="fas fa-cloud" aria-hidden="true"></i> Cloud</th></tr></thead>
+                <tbody id="cloudSyncDifferences"></tbody>
+              </table>
+            </div>
+            <div id="cloudSyncPagination" class="sync-pagination">
+              <button id="cloudSyncPrevious" type="button" class="btn btn-secondary">Previous</button>
+              <span id="cloudSyncPage" aria-live="polite"></span>
+              <button id="cloudSyncNext" type="button" class="btn btn-secondary">Next</button>
+            </div>
+          </div>
+          <div class="sync-choice-actions">
+            <p>Your choice replaces the other copy.</p>
+            <div class="sync-copy-choices">
+              <button id="cloudSyncUseLocal" type="button" class="btn btn-primary"><i class="fas fa-laptop" aria-hidden="true"></i> Use This Device</button>
+              <button id="cloudSyncUseCloud" type="button" class="btn btn-primary"><i class="fas fa-cloud" aria-hidden="true"></i> Use Cloud</button>
+            </div>
+            <button type="button" class="btn btn-secondary sync-cancel" onclick="closeModal('cloudSyncModal')">Cancel</button>
           </div>
         </div>
       </div>
@@ -1850,13 +1799,13 @@
               </div>
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Budget Name <span class="text-xs text-gray-300 font-normal">(Optional if selecting a single category)</span></label>
-              <input type="text" id="editBudgetName" placeholder="e.g. Groceries" class="w-full text-sm" aria-label="e.g. Groceries">
+              <label for="editBudgetName" class="block text-sm font-medium mb-1">Budget Name</label>
+              <input type="text" id="editBudgetName" placeholder="e.g. Groceries" class="w-full text-sm">
             </div>
             <div>
-              <label class="block text-sm font-medium mb-1">Monthly Limit (LKR)</label>
+              <label for="editBudgetLimit" class="block text-sm font-medium mb-1">Monthly Limit (LKR)</label>
               <div class="relative flex items-center w-full">
-                <input type="text" inputmode="decimal" autocomplete="off" id="editBudgetLimit" class="calc-amount w-full pr-8 text-sm" placeholder="e.g. 15000.00" required step="0.01" min="0" aria-label="e.g. 15000.00">
+                <input type="text" inputmode="decimal" autocomplete="off" id="editBudgetLimit" class="calc-amount w-full pr-8 text-sm" placeholder="e.g. 15000.00" required step="0.01" min="0">
                 <button type="button" class="calc-toggle-btn absolute right-4 text-gray-300 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1" aria-label="Toggle Calculator">
                   <i class="fas fa-calculator"></i>
                 </button>
@@ -1899,7 +1848,7 @@
           <div id="confirmationMessage" class="text-gray-300 mb-6">
             Are you sure?
           </div>
-          <div class="flex justify-center gap-4">
+          <div class="flex flex-wrap justify-center gap-4">
             <button id="confirmModalCancelBtn" class="btn btn-secondary">
               Cancel
             </button>
@@ -1933,76 +1882,11 @@
         <div class="flex items-center gap-6 text-gray-300 text-sm">
 
           <button id="pwaInstallBtn" class="accent-text font-medium hidden" data-analytics="pwa_install_click"><i class="fas fa-download mr-1"></i> Install App</button>
-          <button id="footerDonateBtn">Donate</button>
           <a href="https://kaasi.com.lk" target="_blank">Main Website</a>
         </div>
       </div>
     </footer>
 
-    <!-- NEW DONATE MODAL -->
-    <div
-      id="donateModal"
-      class="modal" role="dialog" aria-modal="true"
-      tabindex="-1"
-    >
-      <div class="modal-content max-w-xl">
-        <span
-          class="modal-close" aria-label="Close modal" role="button" tabindex="0"
-          id="closeDonateModal"
-          >&times;</span
-        >
-        <h2 class="text-xl font-semibold mb-3 accent-text">
-          Thank You for Supporting Kaasi!
-        </h2>
-        <p class="mb-2 text-secondary text-[1.08rem]">
-          Your donation helps keep Kaasi free and in active development. Since
-          the AI subscriptions used for development are quite expensive, and I
-          want to keep Kaasi free for everyone, your kind support is greatly
-          appreciated!
-        </p>
-        <div class="donate-bank-details-vertical mt-[1.6rem]">
-          <div class="donate-bank-block">
-            <div class="bank-title accent-text">HNB (Negombo)</div>
-            <div class="bank-pair">
-              <span class="bank-label">Number:</span>
-              <span class="bank-value">0240 2065 9091</span>
-              <button
-                class="copy-button"
-                data-copy-text="024020659091"
-                aria-label="Copy HNB Account Number"
-              >
-                <i class="far fa-copy"></i>
-              </button>
-            </div>
-            <div class="bank-pair">
-              <span class="bank-label">Name:</span>
-              <span class="bank-value">MALSW Goonaratne</span>
-            </div>
-          </div>
-          <div class="donate-bank-block">
-            <div class="bank-title accent-text">Commercial (Negombo 2)</div>
-            <div class="bank-pair">
-              <span class="bank-label">Number:</span>
-              <span class="bank-value">8009 650 486</span>
-              <button
-                class="copy-button"
-                data-copy-text="8009650486"
-                aria-label="Copy Commercial Account Number"
-              >
-                <i class="far fa-copy"></i>
-              </button>
-            </div>
-            <div class="bank-pair">
-              <span class="bank-label">Name:</span>
-              <span class="bank-value">MALSW Goonaratne</span>
-            </div>
-          </div>
-        </div>
-        <p class="text-sm text-secondary mt-[1.3rem]">
-          Every contribution makes a difference. ❤️
-        </p>
-      </div>
-    </div>
 
     <!-- CLOUD SESSION EXPIRED MODAL -->
     <div
@@ -2061,17 +1945,27 @@
       class="fixed bottom-5 right-5 z-[999999] space-y-2 max-w-xs"
     ></div>
 
-
-    <script src="js/globals.js" defer></script>
-    <script src="js/animations.js" defer></script>
-    <script src="js/data-sync.js" defer></script>
-    <script src="js/math-tool.js" defer></script>
-    <script src="js/settings.js" defer></script>
-    <script src="js/charts.js" defer></script>
-    <script src="js/ui.js" defer></script>
-    <script src="js/features.js" defer></script>
-    <script src="js/security.js" defer></script>
-    <script src="js/app.js" defer></script>
+    <script src="js/globals.js?v=v6.502n" defer></script>
+    <script src="js/import-validation.js?v=v6.502n" defer></script>
+    <script src="js/storage.js?v=v6.502n" defer></script>
+    <script src="js/storage-ui.js?v=v6.502n" defer></script>
+    <script src="js/animations.js?v=v6.502n" defer></script>
+    <script src="js/data-sync.js?v=v6.502n" defer></script>
+    <script src="js/cloud-sync.js?v=v6.502n" defer></script>
+    <script src="js/math-tool.js?v=v6.502n" defer></script>
+    <script src="js/settings.js?v=v6.502n" defer></script>
+    <script src="js/charts.js?v=v6.502n" defer></script>
+    <script src="js/ui.js?v=v6.502n" defer></script>
+    <script src="js/settings-workspace.js?v=v6.502n" defer></script>
+    <script src="js/features.js?v=v6.502n" defer></script>
+    <script src="js/subscription-assets.js?v=v6.502n" defer></script>
+    <script src="js/subscription-services.js?v=v6.502n" defer></script>
+    <script src="js/subscriptions.js?v=v6.502n" defer></script>
+    <script src="js/security.js?v=v6.502n" defer></script>
+    <script src="js/milestones.js?v=v6.502n" defer></script>
+    <script src="js/onboarding.js?v=v6.502n" defer></script>
+    <script src="js/app.js?v=v6.502n" defer></script>
+    <script src="js/history-suggestions.js?v=v6.502n" defer></script>
   </body>
 </html>
 

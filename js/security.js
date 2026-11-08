@@ -17,24 +17,38 @@ let pinLockoutUntil = 0;
 let recoveryCodeFailedAttempts = 0;
 let recoveryCodeLockoutUntil = 0;
 
+function isAppLocked() {
+  return window.kaasiAppLocked === true;
+}
+
 function showPinLockScreen() {
   const pinLockOverlay = document.getElementById("pinLockOverlay");
   if (!pinLockOverlay) return;
+  window.kaasiAppLocked = true;
+  if(typeof dismissSourceFloatingUI==='function')dismissSourceFloatingUI();
+  const appContent = document.getElementById("app-content");
+  if (appContent) { appContent.inert = true; appContent.setAttribute("aria-hidden", "true"); }
+  const footer = document.querySelector("footer");
+  if (footer) footer.inert = true;
+  if (document.activeElement?.blur) document.activeElement.blur();
   expectedPin = state.settings.appPin.pin;
   currentPinInput = "";
   failedSecurityAttempts = 0;
   updatePinDots();
   pinLockOverlay.classList.remove("hidden");
+  pinLockOverlay.tabIndex = -1;
+  pinLockOverlay.focus();
   // Small delay to allow display block to apply before opacity transition
   setTimeout(() => {
     pinLockOverlay.style.opacity = "1";
   }, 10);
   
   // Add keyboard listener for desktop users
+  if (lockScreenKeydownListener) document.removeEventListener("keydown", lockScreenKeydownListener);
   lockScreenKeydownListener = (e) => {
     const modal = document.getElementById("securityQuestionModal");
     // Only listen if overlay is visible and modal is NOT open
-    if (!pinLockOverlay.classList.contains("hidden") && modal.style.display !== "block") {
+    if (!e.ctrlKey && !e.altKey && !e.metaKey && !pinLockOverlay.classList.contains("hidden") && modal.style.display !== "block") {
       if (e.key >= "0" && e.key <= "9") {
         addPinDigit(parseInt(e.key));
       } else if (e.key === "Backspace") {
@@ -46,8 +60,14 @@ function showPinLockScreen() {
 }
 
 function onAppUnlocked() {
-  const appContainer = document.getElementById("appContainer");
-  if (appContainer) appContainer.classList.remove("hidden");
+  window.kaasiAppLocked = false;
+  if (typeof scheduleAutomaticCloudSync === 'function') scheduleAutomaticCloudSync(1000);
+  if (typeof Subscriptions !== "undefined") Subscriptions.scheduleReminder();
+  requestStartupStorageProtection();
+  const appContent = document.getElementById("app-content");
+  if (appContent) { appContent.inert = false; appContent.removeAttribute("aria-hidden"); }
+  const footer = document.querySelector("footer");
+  if (footer) footer.inert = false;
 
   let isFirstUnlock = false;
   if (!window.uiInitialized) {
@@ -183,7 +203,7 @@ function showForgotPinModal() {
     if (answerHash === expectedAnswerHash) {
       // Correct! Unlock app and remove PIN
       state.settings.appPin = { enabled: false };
-      saveData();
+      await saveData();
       closeModal("securityQuestionModal");
       onAppUnlocked();
       showNotification("App unlocked. PIN has been disabled.", "success");
@@ -237,7 +257,7 @@ async function verifyRecoveryCode() {
       recoveryCodeFailedAttempts = 0;
       recoveryCodeLockoutUntil = 0;
       state.settings.appPin = { enabled: false };
-      saveData();
+      await saveData();
       closeModal("securityQuestionModal");
       inputEl.value = "";
       onAppUnlocked();

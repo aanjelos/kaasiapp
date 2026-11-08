@@ -2,7 +2,7 @@
  * settings.js
  * Manages the settings modal, user preferences, account management, and category rules.
  */
-function openSettingsModal() {
+function openSettingsModal({ restore = false } = {}) {
   renderSettingsForm();
   setupSettingsTabs();
   setupAppearanceListeners();
@@ -16,13 +16,93 @@ function openSettingsModal() {
   if (storageInfoElement) {
     storageInfoElement.textContent = `Approx. Storage Used: ${getFormattedLocalStorageSize(
       STORAGE_KEY
-    )}`;
+    )} (${KaasiStorage.mode === "indexeddb" ? "IndexedDB" : "localStorage"})`;
   }
 
-  openModalHelper("settingsModal");
+  if (!restore) openModalHelper("settingsModal");
   cancelDeleteAllData();
   displayAppVersion();
+  refreshStorageProtection();
+  if (supabaseUser && typeof refreshCloudSyncStatus === "function") refreshCloudSyncStatus();
 }
+
+let storageProtectionCheck = 0;
+let storageProtectionRequestPending = false;
+let storageProtectionLaunchChecked = false;
+
+async function rememberStorageProtectionDecision(granted) {
+  try {
+    if (granted) appPreferences.removeItem("kaasi_storage_protection_denied");
+    else appPreferences.setItem("kaasi_storage_protection_denied", "true");
+    await appPreferences.flush();
+  } catch (error) { console.warn("Storage protection preference could not be saved.", error); }
+}
+
+async function requestStartupStorageProtection() {
+  if (storageProtectionLaunchChecked || KaasiStorage.mode !== "indexeddb" || isAppLocked()) return;
+  storageProtectionLaunchChecked = true;
+  try {
+    if (window.storagePersistenceDecision !== undefined) {
+      await rememberStorageProtectionDecision(window.storagePersistenceDecision);
+      return;
+    }
+    if (!navigator.storage?.persist || !navigator.storage?.persisted) return;
+    if (await navigator.storage.persisted()) { await rememberStorageProtectionDecision(true); return; }
+    if (appPreferences.getItem("kaasi_storage_protection_denied") === "true") return;
+    try {
+      const permission = await navigator.permissions?.query({ name: "persistent-storage" });
+      if (permission?.state === "denied") { await rememberStorageProtectionDecision(false); return; }
+    } catch (_) { /* Not every browser supports this permission query. */ }
+    if (isAppLocked() || storageProtectionRequestPending) return;
+    await refreshStorageProtection();
+  } catch (error) { console.warn("Automatic storage protection request could not complete.", error); }
+}
+
+async function refreshStorageProtection() {
+  const persistButton = $("#requestPersistenceBtn");
+  if (persistButton) {
+    $("#storageProtectionSection").hidden = KaasiStorage.mode !== "indexeddb";
+    persistButton.hidden = KaasiStorage.mode !== "indexeddb";
+    const canRequest = typeof navigator.storage?.persist === "function";
+    if (storageProtectionRequestPending) return;
+    const check = ++storageProtectionCheck;
+    const renderProtection = (granted, message) => {
+      persistButton.disabled = granted || !canRequest;
+      persistButton.textContent = granted ? "Protection Enabled" : "Enable Protection";
+      $("#persistenceStatus").textContent = granted
+        ? "Your browser has enabled extra protection against automatic cleanup. Keep regular backups too."
+        : message || (canRequest ? "Ask your browser to protect Kaasi’s saved records from automatic cleanup. Keep regular backups too." : "Extra protection is unavailable in this browser. Kaasi can still save records. Keep regular backups.");
+    };
+    renderProtection(false, "Checking storage protection…");
+    persistButton.onclick = async () => {
+      if (storageProtectionRequestPending) return;
+      storageProtectionRequestPending = true;
+      ++storageProtectionCheck;
+      persistButton.disabled = true;
+      try {
+        const granted = await navigator.storage.persist();
+        renderProtection(granted, "Your browser hasn’t enabled extra protection. Kaasi can still save your records. Keep regular backups.");
+        await rememberStorageProtectionDecision(granted);
+      } catch (_) { renderProtection(false, "Extra protection is unavailable in this browser. Kaasi can still save records. Keep regular backups."); }
+      finally { storageProtectionRequestPending = false; }
+    };
+    if (navigator.storage?.persisted) {
+      try {
+        const granted = await navigator.storage.persisted();
+        if (check === storageProtectionCheck) renderProtection(granted);
+      } catch (_) {
+        if (check === storageProtectionCheck) renderProtection(false, "Storage protection could not be checked. Keep external backups.");
+      }
+    } else renderProtection(false);
+  }
+}
+
+function refreshVisibleStorageProtection() {
+  if (document.visibilityState === "hidden" || $("#settingsModal")?.style.display !== "block") return;
+  refreshStorageProtection();
+}
+window.addEventListener("focus", refreshVisibleStorageProtection);
+document.addEventListener("visibilitychange", refreshVisibleStorageProtection);
 
 function renderSettingsForm() {
   const accountManagementList = $("#accountManagementList");
@@ -42,6 +122,7 @@ function renderSettingsForm() {
       // Hide/Show Button
       const hideButton = document.createElement("button");
       hideButton.type = "button";
+      hideButton.setAttribute("aria-label", `${acc.hidden ? "Show" : "Hide"} ${acc.name}`);
       hideButton.className = "btn-icon-hide justify-self-center";
       hideButton.dataset.accountId = acc.id;
       hideButton.innerHTML = `<i class="fas ${
@@ -55,6 +136,7 @@ function renderSettingsForm() {
       const nameInput = document.createElement("input");
       nameInput.type = "text";
       nameInput.name = `accountName_${acc.id}`;
+      nameInput.setAttribute("aria-label", `${acc.name} account name`);
       nameInput.value = acc.name;
       nameInput.dataset.accountId = acc.id;
       nameInput.className = "text-sm rounded placeholder-gray-400";
@@ -65,12 +147,17 @@ function renderSettingsForm() {
         nameInput.readOnly = true;
         nameInput.classList.add("text-gray-400", "cursor-not-allowed");
       }
-      accRow.appendChild(nameInput);
+      const nameField = document.createElement("label");
+      nameField.className = "settings-account-name";
+      nameField.innerHTML = '<span class="settings-mobile-field-label">Account Name</span>';
+      nameField.appendChild(nameInput);
+      accRow.appendChild(nameField);
 
       // Balance Input
       const balanceInput = document.createElement("input");
       balanceInput.type = "number";
       balanceInput.name = `accountBalance_${acc.id}`;
+      balanceInput.setAttribute("aria-label", `${acc.name} balance`);
       balanceInput.value = acc.balance.toFixed(2);
       balanceInput.step = "0.01";
       balanceInput.dataset.accountId = acc.id;
@@ -79,7 +166,11 @@ function renderSettingsForm() {
       balanceInput.style.backgroundColor = "var(--bg-secondary)";
       balanceInput.style.borderColor = "var(--border-color)";
       balanceInput.style.color = "var(--text-primary)";
-      accRow.appendChild(balanceInput);
+      const balanceField = document.createElement("label");
+      balanceField.className = "settings-account-balance";
+      balanceField.innerHTML = '<span class="settings-mobile-field-label">Balance (LKR)</span>';
+      balanceField.appendChild(balanceInput);
+      accRow.appendChild(balanceField);
 
       accountManagementList.appendChild(accRow);
     });
@@ -104,16 +195,16 @@ function renderSettingsForm() {
 
   const settingsTransferFeeForm = $("#settingsTransferFeeForm");
   if (settingsTransferFeeForm) {
-    settingsTransferFeeForm.onsubmit = (event) => {
+    settingsTransferFeeForm.onsubmit = async (event) => {
       event.preventDefault();
       const formData = new FormData(settingsTransferFeeForm);
-      const fee = parseFloat(String(formData.get("defaultTransferFee")).replace(/,/g, ''));
+      const fee = parseAmountValue(formData.get("defaultTransferFee"));
       if (isNaN(fee) || fee < 0) {
         showNotification("Invalid transfer fee amount.", "error");
         return;
       }
       state.settings.defaultTransferFee = fee;
-      saveData();
+      await saveData(state, {syncSettings:true});
       showNotification(`Default transfer fee set to ${formatCurrency(fee)}.`, "success");
     };
   }
@@ -131,10 +222,10 @@ function renderSettingsForm() {
 
   const settingsCcLimitForm = $("#settingsCcLimitForm");
   if (settingsCcLimitForm) {
-    settingsCcLimitForm.onsubmit = (event) => {
+    settingsCcLimitForm.onsubmit = async (event) => {
       event.preventDefault();
       const formData = new FormData(settingsCcLimitForm);
-      const limit = parseFloat(String(formData.get("ccLimitAmount")).replace(/,/g, ''));
+      const limit = parseAmountValue(formData.get("ccLimitAmount"));
       if (isNaN(limit) || limit < 0) {
         showNotification("Invalid credit limit amount.", "error");
         return;
@@ -143,7 +234,7 @@ function renderSettingsForm() {
         state.creditCard = { limit: 0, transactions: [] };
       }
       state.creditCard.limit = limit;
-      saveData();
+      await saveData(state, {syncSettings:true});
       renderCreditCardSection();
       if ($("#ccHistoryModal").style.display === "block") openCcHistoryModal();
       showNotification(
@@ -168,7 +259,7 @@ function renderSettingsForm() {
         : true;
 
     if (!toggleCcSectionElement.dataset.listenerAttached) {
-      toggleCcSectionElement.onchange = () => {
+      toggleCcSectionElement.onchange = async () => {
         if (!state.settings) {
           state.settings = {
             initialSetupDone: false,
@@ -177,7 +268,7 @@ function renderSettingsForm() {
           };
         }
         state.settings.showCcDashboardSection = toggleCcSectionElement.checked;
-        saveData();
+        await saveData();
         updateCcDashboardSectionVisibility();
         showNotification(
           `Credit Card section on dashboard will now be ${
@@ -206,7 +297,7 @@ function renderSettingsForm() {
         : true;
 
     if (!toggleMathToolbarElement.dataset.listenerAttached) {
-      toggleMathToolbarElement.onchange = () => {
+      toggleMathToolbarElement.onchange = async () => {
         if (!state.settings) {
           state.settings = {
             initialSetupDone: false,
@@ -216,7 +307,7 @@ function renderSettingsForm() {
           };
         }
         state.settings.showMathToolbar = toggleMathToolbarElement.checked;
-        saveData();
+        await saveData();
         applyAppearance();
       };
       toggleMathToolbarElement.dataset.listenerAttached = "true";
@@ -237,43 +328,28 @@ function renderSettingsForm() {
         : "default";
 
     if (!backupReminderSelect.dataset.listenerAttached) {
-      backupReminderSelect.onchange = () => {
+      backupReminderSelect.onchange = async () => {
         if (!state.settings) {
           state.settings = { backupReminderFrequency: "default" };
         }
         state.settings.backupReminderFrequency = backupReminderSelect.value;
-        saveData();
+        await saveData();
         showNotification("Local backup reminder frequency updated.", "success");
       };
       backupReminderSelect.dataset.listenerAttached = "true";
     }
   }
 
-  // --- CASH COUNTER TOGGLE INIT ---
-  const toggleHideCashCounter = $("#toggleHideCashCounter");
-  if (toggleHideCashCounter) {
-    toggleHideCashCounter.checked = state.settings.hideCashCounter === true;
-
-    if (!toggleHideCashCounter.dataset.listenerAttached) {
-      toggleHideCashCounter.onchange = () => {
-        if (!state.settings) state.settings = {};
-        state.settings.hideCashCounter = toggleHideCashCounter.checked;
-        saveData();
-        if (typeof renderDashboard === "function") renderDashboard();
-      };
-      toggleHideCashCounter.dataset.listenerAttached = "true";
-    }
-  }
 
   // --- ADDITIONAL DASHBOARD TOGGLES INIT ---
   const toggleHideTotalPotential = $("#toggleHideTotalPotential");
   if (toggleHideTotalPotential) {
     toggleHideTotalPotential.checked = state.settings.hideTotalPotential === true;
     if (!toggleHideTotalPotential.dataset.listenerAttached) {
-      toggleHideTotalPotential.onchange = () => {
+      toggleHideTotalPotential.onchange = async () => {
         if (!state.settings) state.settings = {};
         state.settings.hideTotalPotential = toggleHideTotalPotential.checked;
-        saveData();
+        await saveData();
         if (typeof renderDashboard === "function") renderDashboard();
       };
       toggleHideTotalPotential.dataset.listenerAttached = "true";
@@ -284,10 +360,10 @@ function renderSettingsForm() {
   if (toggleHideDebts) {
     toggleHideDebts.checked = state.settings.hideDebts === true;
     if (!toggleHideDebts.dataset.listenerAttached) {
-      toggleHideDebts.onchange = () => {
+      toggleHideDebts.onchange = async () => {
         if (!state.settings) state.settings = {};
         state.settings.hideDebts = toggleHideDebts.checked;
-        saveData();
+        await saveData();
         if (typeof renderDashboard === "function") renderDashboard();
       };
       toggleHideDebts.dataset.listenerAttached = "true";
@@ -298,10 +374,10 @@ function renderSettingsForm() {
   if (toggleHideInstallments) {
     toggleHideInstallments.checked = state.settings.hideInstallments === true;
     if (!toggleHideInstallments.dataset.listenerAttached) {
-      toggleHideInstallments.onchange = () => {
+      toggleHideInstallments.onchange = async () => {
         if (!state.settings) state.settings = {};
         state.settings.hideInstallments = toggleHideInstallments.checked;
-        saveData();
+        await saveData();
         if (typeof renderDashboard === "function") renderDashboard();
       };
       toggleHideInstallments.dataset.listenerAttached = "true";
@@ -372,12 +448,10 @@ function renderSettingsForm() {
         if (pin !== confirmPin) return showNotification("PINs do not match.", "error");
         if (!a) return showNotification("You must provide an answer to the security question.", "error");
         
-        if (!state.settings.appPin) state.settings.appPin = {};
-        state.settings.appPin.enabled = true;
-        state.settings.appPin.pin = await hashString(pin);
-        state.settings.appPin.question = q;
-        state.settings.appPin.answer = await hashString(a);
-        saveData();
+        const pinHash = await hashString(pin);
+        const answerHash = await hashString(a);
+        state.settings.appPin = { enabled: true, pin: pinHash, question: q, answer: answerHash };
+        await saveData(state, {syncSettings:true});
         
         hideAllInlineForms();
         toggleAppPin.checked = true;
@@ -413,7 +487,7 @@ function renderSettingsForm() {
         if (newPin !== confirmPin) return showNotification("New PINs do not match.", "error");
         
         state.settings.appPin.pin = await hashString(newPin);
-        saveData();
+        await saveData(state, {syncSettings:true});
         hideAllInlineForms();
         showNotification("PIN changed successfully.", "success");
       };
@@ -448,7 +522,7 @@ function renderSettingsForm() {
         
         state.settings.appPin.question = newQ;
         state.settings.appPin.answer = await hashString(newA);
-        saveData();
+        await saveData(state, {syncSettings:true});
         if (inlineChangeQuestion) inlineChangeQuestion.classList.add("hidden");
         hideAllInlineForms();
         showNotification("Security Question updated.", "success");
@@ -475,7 +549,7 @@ function renderSettingsForm() {
         if (currentHash !== state.settings.appPin.pin) return showNotification("Incorrect current PIN.", "error");
         
         state.settings.appPin = { enabled: false };
-        saveData();
+        await saveData(state, {syncSettings:true});
         hideAllInlineForms();
         toggleAppPin.checked = false;
         securityManagementOptions.classList.add("hidden");
@@ -486,6 +560,13 @@ function renderSettingsForm() {
     }
   }
   // --- END SECURITY PANEL UI INIT ---
+  for (const id of ["btnSavePinSetup", "btnSavePinChange", "btnSaveQuestionChange", "btnConfirmPinRemove"]) {
+    const button = document.getElementById(id);
+    if (button?.onclick && !button.dataset.storageGuard) {
+      button.onclick = guardStorageAction(button.onclick);
+      button.dataset.storageGuard = "true";
+    }
+  }
 
   const addCategoryForm = $("#addCategoryForm");
   if (addCategoryForm) {
@@ -515,47 +596,22 @@ function renderSettingsForm() {
 
 function renderCategorySettingsList() {
   const categoryList = $("#categorySettingsList");
-  if (!categoryList) {
-    console.error("#categorySettingsList element not found.");
-    return;
-  }
+  if (!categoryList) return;
   categoryList.innerHTML = "";
-
-  const sortedCategories = [...state.categories].sort((a, b) =>
-    a.localeCompare(b)
-  );
-
-  sortedCategories.forEach((cat) => {
+  [...state.categories].sort(compareCategoryNames).forEach(cat => {
     const li = document.createElement("li");
-
-    li.className = "flex justify-between items-center px-3 py-1.5 rounded";
-    li.style.backgroundColor = "var(--bg-secondary)";
-    li.style.borderColor = "var(--border-color)";
-    li.style.borderWidth = "1px";
-
-    const inputElementHTML = `<input type="text" value="${escapeHTML(cat)}" data-original-name="${escapeHTML(cat)}" class="bg-transparent border-none focus:ring-0 focus:outline-none p-0 flex-grow mr-2 text-sm">`;
-
-    const buttonsDiv = document.createElement("div");
-    buttonsDiv.className = "flex items-center gap-x-3";
-
-    const isHidden = state.hiddenCategories?.includes(cat);
-    const eyeIconClass = isHidden ? "fa-eye-slash text-gray-500" : "fa-eye text-accent-primary";
-    const eyeTooltip = isHidden ? "Hidden Category (Click to make visible)" : "Visible Category (Click to hide)";
-    
-    const toggleBtn = `<button class="focus:outline-none hover:scale-110 transition-transform flex items-center justify-center w-6 h-6" onclick="toggleHiddenCategory(this.getAttribute('data-cat'))" data-cat="${escapeHTML(cat)}" data-tooltip="${escapeHTML(eyeTooltip)}"><i class="fas ${eyeIconClass}"></i></button>`;
-
-    const saveButtonHTML = `<button class="btn btn-primary btn-sm !py-1 !px-3 text-xs font-medium" onclick="renameCategory(this)">Save</button>`;
-    const deleteButtonHTML = `<button class="text-gray-400 hover:text-expense focus:outline-none w-6 h-6 flex items-center justify-center" onclick="deleteCategory(this.getAttribute('data-cat'))" data-cat="${escapeHTML(cat)}" data-tooltip="Delete Category"><i class="fas fa-times"></i></button>`;
-
-    li.innerHTML = inputElementHTML;
-    buttonsDiv.innerHTML = toggleBtn + saveButtonHTML + deleteButtonHTML;
-    li.appendChild(buttonsDiv);
-
+    li.className = "settings-category-row";
+    const hidden = state.hiddenCategories?.includes(cat);
+    const canRename = cat.toLowerCase() !== 'other';
+    const canDelete = canRename && cat.toLowerCase() !== getTransferFeeCategory().toLowerCase();
+    li.innerHTML = `
+      <div class="settings-category-summary"><div class="settings-category-name"><strong>${escapeHTML(cat)}</strong>${hidden ? '<small>Hidden</small>' : ''}<input hidden type="text" aria-label="Category name" value="${escapeHTML(cat)}" data-original-name="${escapeHTML(cat)}"></div><div class="settings-category-normal-actions"><button type="button" class="settings-row-icon" aria-label="${hidden?'Show':'Hide'} ${escapeHTML(cat)}" onclick="toggleHiddenCategory(this.dataset.cat)" data-cat="${escapeHTML(cat)}"><i class="fas ${hidden?'fa-eye-slash':'fa-eye'}" aria-hidden="true"></i></button>${canRename ? `<button type="button" class="settings-row-icon" aria-label="Rename ${escapeHTML(cat)}" onclick="SettingsWorkspace.editCategory(this)"><i class="fas fa-pen" aria-hidden="true"></i></button>` : ''}${canDelete ? `<button type="button" class="settings-row-icon" aria-label="Delete ${escapeHTML(cat)}" onclick="deleteCategory(this.dataset.cat)" data-cat="${escapeHTML(cat)}"><i class="fas fa-trash-alt" aria-hidden="true"></i></button>` : ''}</div><div class="settings-category-save-actions" hidden><button class="settings-row-icon" type="button" aria-label="Cancel Rename" onclick="SettingsWorkspace.editCategory(this,false)"><i class="fas fa-times" aria-hidden="true"></i></button><button class="settings-row-icon accent-text" type="button" aria-label="Save Rename" onclick="renameCategory(this)"><i class="fas fa-check" aria-hidden="true"></i></button></div></div>`;
     categoryList.appendChild(li);
   });
 }
 
-function toggleHiddenCategory(categoryName) {
+
+async function toggleHiddenCategory(categoryName) {
   if (!Array.isArray(state.hiddenCategories)) {
     state.hiddenCategories = [];
   }
@@ -563,13 +619,12 @@ function toggleHiddenCategory(categoryName) {
   const index = state.hiddenCategories.indexOf(categoryName);
   if (index > -1) {
     state.hiddenCategories.splice(index, 1);
-    showNotification(`${categoryName} is now visible`, "success");
   } else {
     state.hiddenCategories.push(categoryName);
-    showNotification(`${categoryName} is now hidden`, "success");
   }
   
-  saveData();
+  await saveData();
+  showNotification(`${categoryName} is now ${index > -1 ? "visible" : "hidden"}`, "success");
   renderCategorySettingsList();
   renderDashboard();
 }
@@ -577,7 +632,8 @@ function toggleHiddenCategory(categoryName) {
 function toggleAdvancedRules() {
   const container = document.getElementById('advancedRulesContainer');
   const icon = document.getElementById('advancedRulesIcon');
-  if (container.style.display === 'none') {
+  if (container.classList.contains('hidden') || container.style.display === 'none') {
+    container.classList.remove('hidden');
     container.style.display = 'block';
     icon.classList.remove('fa-chevron-down');
     icon.classList.add('fa-chevron-up');
@@ -588,28 +644,36 @@ function toggleAdvancedRules() {
   }
 }
 
-function toggleHiddenRule(ruleKey) {
+async function toggleHiddenRule(ruleKey) {
   if (!state.settings) state.settings = {};
   if (!state.settings.hiddenCategoryRules) state.settings.hiddenCategoryRules = {};
   
   const checkbox = document.getElementById(`rule_${ruleKey}`);
   state.settings.hiddenCategoryRules[ruleKey] = checkbox.checked;
   
-  saveData();
+  await saveData();
   renderDashboard();
 }
 
-function renameCategory(buttonElement) {
+async function renameCategory(buttonElement) {
   const liElement = buttonElement.closest("li");
   const inputElement = liElement.querySelector('input[type="text"]');
   const newName = inputElement.value.trim();
   const originalName = inputElement.dataset.originalName;
+  if (originalName.toLowerCase() === 'other') {
+    showNotification(`The '${originalName}' category cannot be renamed.`, "warning");
+    inputElement.value = originalName;
+    return;
+  }
   if (!newName) {
     showNotification("Category name cannot be empty.", "error");
     inputElement.value = originalName;
     return;
   }
-  if (newName === originalName) return;
+  if (newName === originalName) {
+    SettingsWorkspace.editCategory(buttonElement, false);
+    return;
+  }
   if (
     state.categories.some(
       (cat) =>
@@ -632,6 +696,20 @@ function renameCategory(buttonElement) {
       }
     });
 
+    state.hiddenCategories = (state.hiddenCategories || []).map(cat => cat === originalName ? newName : cat);
+    state.creditCard.transactions.forEach(item => {
+      if (item.category === originalName) item.category = newName;
+    });
+    (state.subscriptions || []).forEach(item => {
+      if (item.category === originalName) item.category = newName;
+    });
+    if (getTransferFeeCategory().toLowerCase() === originalName.toLowerCase()) {
+      state.settings.defaultTransferFeeCategory = newName;
+    }
+    $$(".filter-category-checkbox").forEach(checkbox => {
+      if (checkbox.value === originalName) checkbox.value = newName;
+    });
+
     // Cascade to budgets
     let budgetUpdateCount = 0;
     if (state.budgets) {
@@ -643,22 +721,26 @@ function renameCategory(buttonElement) {
       });
     }
 
-    saveData();
+    await saveData(state, {syncSettings:true});
     populateDropdowns();
     renderCategorySettingsList();
-    if (typeof renderCategoryBudgets === "function") renderCategoryBudgets();
+    renderDashboard();
+    refreshMonthlyViewIfRelevant(getCurrentDateString());
+    if (typeof renderBudgetsSettingsList === "function") renderBudgetsSettingsList();
+    buildBudgetCategoryCheckboxes("addBudgetCategoriesContainer");
     
     showNotification(
       `Category "${originalName}" renamed to "${newName}". ${updateCount} transaction(s) and ${budgetUpdateCount} budget(s) updated.`,
       "success"
     );
+    document.body.renderCcHistoryList?.();
   } else {
     showNotification(`Original category "${originalName}" not found.`, "error");
     inputElement.value = originalName;
   }
 }
 
-function addCategory(event) {
+async function addCategory(event) {
   event.preventDefault();
   const input = $("#newCategoryName");
   const newCategoryName = input.value.trim();
@@ -680,16 +762,17 @@ function addCategory(event) {
   }
   state.categories.push(newCategoryName);
   state.categories.sort((a, b) => a.localeCompare(b));
-  saveData();
+  await saveData(state, {syncSettings:true});
   populateDropdowns();
   renderCategorySettingsList();
   input.value = "";
   showNotification(`Category "${newCategoryName}" added.`, "success");
+  if ($("#settingsAddCategoryModal")?.style.display === "block") closeModal("settingsAddCategoryModal");
 }
 
-function deleteCategory(categoryName) {
-  if (categoryName === "Other") {
-    showNotification("The 'Other' category cannot be deleted.", "warning");
+async function deleteCategory(categoryName) {
+  if (categoryName.toLowerCase() === 'other' || categoryName.toLowerCase() === getTransferFeeCategory().toLowerCase()) {
+    showNotification(`The '${categoryName}' category cannot be deleted.`, "warning");
     return;
   }
   const isUsed = state.transactions.some((t) => t.category === categoryName);
@@ -704,12 +787,19 @@ function deleteCategory(categoryName) {
     showNotification(`Category "${categoryName}" not found.`, "error");
     return;
   }
-  if (
-    confirm(
-      `Are you sure you want to delete the category "${categoryName}"? This action cannot be undone if the category is not in use.`
-    )
-  ) {
+  const subscriptionCount = (state.subscriptions || []).filter(item => item.category === categoryName).length;
+  const subscriptionWarning = subscriptionCount
+    ? `<br><br>This category is used by ${subscriptionCount} ${subscriptionCount === 1 ? 'subscription. Its saved category selection will be cleared. Edit that subscription' : 'subscriptions. Their saved category selections will be cleared. Edit those subscriptions'} to choose a new default, or select a category when recording each payment.`
+    : '';
+  showConfirmationModal('Delete Category?', `Delete "${escapeHTML(categoryName)}"? This cannot be undone.${subscriptionWarning}`, 'Delete Category', 'Cancel', async () => {
+    if (state.transactions.some(t => t.category === categoryName)) { showNotification('This category is now in use and cannot be deleted.', 'error'); return; }
     state.categories = state.categories.filter((cat) => cat !== categoryName);
+    state.creditCard.transactions.forEach(item => {
+      if (item.category === categoryName) delete item.category;
+    });
+    (state.subscriptions || []).forEach(item => {
+      if (item.category === categoryName) item.category = '';
+    });
     
     // Cascade to budgets
     if (state.budgets) {
@@ -719,21 +809,23 @@ function deleteCategory(categoryName) {
       // Removed clean up empty budgets to avoid silent deletion
     }
 
-    saveData();
+    await saveData();
     populateDropdowns();
     renderCategorySettingsList();
     if (typeof renderCategoryBudgets === "function") renderCategoryBudgets();
     showNotification(`Category "${categoryName}" deleted.`, "success");
-  }
+    document.body.renderCcHistoryList?.();
+  });
 }
 
-function handleManageAccountsSubmit(event) {
+async function handleManageAccountsSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.target);
   let changesMade = false;
   let errors = [];
+  const draftAccounts = state.accounts.map(account => ({...account}));
 
-  state.accounts.forEach((acc) => {
+  draftAccounts.forEach((acc) => {
     const newNameInput = formData.get(`accountName_${acc.id}`);
     const newBalanceInput = formData.get(`accountBalance_${acc.id}`);
 
@@ -743,7 +835,7 @@ function handleManageAccountsSubmit(event) {
     }
 
     const newName = newNameInput.trim();
-    const newBalance = parseFloat(String(newBalanceInput).replace(/,/g, ''));
+    const newBalance = parseAmountValue(newBalanceInput);
 
     if (acc.id !== "cash") {
       if (!newName) {
@@ -794,6 +886,8 @@ function handleManageAccountsSubmit(event) {
     }
   });
 
+  const names = draftAccounts.map(account => account.name.toLowerCase());
+  if (new Set(names).size !== names.length) errors.push('Account names must be unique.');
   if (errors.length > 0) {
     errors.forEach((err) => showNotification(err, "error", 6000));
     renderSettingsForm();
@@ -801,10 +895,11 @@ function handleManageAccountsSubmit(event) {
   }
 
   if (changesMade) {
+    draftAccounts.forEach(draft => Object.assign(state.accounts.find(account => account.id === draft.id), draft));
     if (state.settings && !state.settings.initialSetupDone) {
       state.settings.initialSetupDone = true;
     }
-    saveData();
+    await saveData(state, {syncSettings:true});
     renderDashboard();
     populateDropdowns();
     renderSettingsForm();
@@ -816,7 +911,7 @@ function handleManageAccountsSubmit(event) {
     // Check if any balance was just re-formatted to 2 decimals without changing its value significantly
     let formattingChangeOnly = false;
     state.accounts.forEach((acc) => {
-      const newBalanceFromForm = parseFloat(String(formData.get(`accountBalance_${acc.id}`)).replace(/,/g, ''));
+      const newBalanceFromForm = parseAmountValue(formData.get(`accountBalance_${acc.id}`));
       if (
         !isNaN(newBalanceFromForm) &&
         acc.balance !== roundToTwoDecimals(newBalanceFromForm) &&
@@ -830,7 +925,7 @@ function handleManageAccountsSubmit(event) {
     });
     if (formattingChangeOnly && !changesMade) {
       // only save if it was just a formatting cleanup
-      saveData();
+      await saveData();
       renderDashboard();
       populateDropdowns();
       renderSettingsForm();
@@ -848,114 +943,13 @@ function handleManageAccountsSubmit(event) {
 }
 
 function setupSettingsTabs() {
-  const tabsContainer = document.getElementById("settingsTabsContainer");
-  const tabContentContainer = document.getElementById("settingsTabContent");
-
-  if (!tabsContainer || !tabContentContainer) {
-    console.error("Settings tab containers not found!");
-    return;
-  }
-
-  tabsContainer.innerHTML = "";
-  activeSettingsTab = null;
-
-  settingsTabsConfig.forEach((tabConfig, index) => {
-    const li = document.createElement("li");
-    li.className = "flex-shrink-0";
-
-    const button = document.createElement("button");
-    button.className =
-      "settings-tab-button inline-block p-3 border-b-2 rounded-t-lg whitespace-nowrap";
-    button.textContent = tabConfig.label;
-    button.dataset.tabTarget = `#${tabConfig.targetPanelId}`;
-
-    button.addEventListener("click", () => {
-      switchSettingsTab(button, tabConfig.targetPanelId);
-    });
-
-    li.appendChild(button);
-    tabsContainer.appendChild(li);
-
-    if (index === 0) {
-      switchSettingsTab(button, tabConfig.targetPanelId);
-    } else {
-      const panel = document.getElementById(tabConfig.targetPanelId);
-      if (panel) {
-        panel.classList.add("hidden");
-      }
-    }
-  });
-
-  // Dynamic Scroll Fade Logic
-  const updateTabScrollFade = () => {
-    // Only apply on mobile/small screens if desired, but scrollWidth check handles desktop naturally
-    if (tabsContainer.scrollWidth <= tabsContainer.clientWidth) {
-      tabsContainer.style.maskImage = 'none';
-      tabsContainer.style.webkitMaskImage = 'none';
-      return;
-    }
-    
-    const isAtStart = tabsContainer.scrollLeft <= 0;
-    const isAtEnd = Math.ceil(tabsContainer.scrollLeft) >= (tabsContainer.scrollWidth - tabsContainer.clientWidth) - 1;
-    
-    if (isAtStart && !isAtEnd) {
-      tabsContainer.style.maskImage = 'linear-gradient(to right, black 85%, transparent 100%)';
-      tabsContainer.style.webkitMaskImage = 'linear-gradient(to right, black 85%, transparent 100%)';
-    } else if (!isAtStart && isAtEnd) {
-      tabsContainer.style.maskImage = 'linear-gradient(to right, transparent 0%, black 15%, black 100%)';
-      tabsContainer.style.webkitMaskImage = 'linear-gradient(to right, transparent 0%, black 15%, black 100%)';
-    } else if (!isAtStart && !isAtEnd) {
-      tabsContainer.style.maskImage = 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)';
-      tabsContainer.style.webkitMaskImage = 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%)';
-    } else {
-      tabsContainer.style.maskImage = 'none';
-      tabsContainer.style.webkitMaskImage = 'none';
-    }
-  };
-
-  tabsContainer.addEventListener('scroll', updateTabScrollFade, { passive: true });
-  window.addEventListener('resize', updateTabScrollFade, { passive: true });
-  
-  // Need to run it once it's visible, so we hook into the modal open or a short timeout
-  setTimeout(updateTabScrollFade, 50);
+  SettingsWorkspace.setup();
 }
 
 function switchSettingsTab(clickedButton, targetPanelId) {
-  const tabContentContainer = document.getElementById("settingsTabContent");
-  if (!tabContentContainer) return;
-
-  if (activeSettingsTab && activeSettingsTab.button !== clickedButton) {
-    activeSettingsTab.button.classList.remove("active");
-
-    const oldPanelSelector = activeSettingsTab.button.dataset.tabTarget;
-    if (oldPanelSelector) {
-      const oldPanel = tabContentContainer.querySelector(oldPanelSelector);
-      if (oldPanel) {
-        oldPanel.classList.add("hidden");
-      }
-    }
-  }
-
-  clickedButton.classList.add("active");
-  
-  if (typeof updateTabIndicator === 'function') {
-    updateTabIndicator('settingsTabsContainer');
-  }
-  
-  // Scroll the active tab into view (centered)
-  setTimeout(() => {
-    clickedButton.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, 10);
-
-  const targetPanel = document.getElementById(targetPanelId);
-  if (targetPanel) {
-    targetPanel.classList.remove("hidden");
-  } else {
-    console.warn(`Target panel with ID '${targetPanelId}' not found.`);
-  }
-
-  activeSettingsTab = { button: clickedButton, panelId: targetPanelId };
+  SettingsWorkspace.navigate(targetPanelId);
 }
+
 
 
 // --- CATEGORY BUDGETS SETTINGS LOGIC ---
@@ -969,7 +963,7 @@ function buildBudgetCategoryCheckboxes(containerId, selectedCategories = [], cur
     (c) =>
       c.toLowerCase() !== "income" &&
       c.toLowerCase() !== "credit card payment"
-  ).sort((a, b) => a.localeCompare(b));
+  ).sort(compareCategoryNames);
 
   if (generalCategories.length === 0) {
     container.innerHTML = `<p class="text-xs text-gray-400 p-2">No categories available.</p>`;
@@ -1060,6 +1054,8 @@ function buildBudgetCategoryCheckboxes(containerId, selectedCategories = [], cur
 function renderBudgetsSettingsList() {
   const container = $("#activeBudgetsList");
   if (!container) return;
+  const sortSelect = $("#budgetSortOrderSelect");
+  if (sortSelect) sortSelect.value = state.settings?.budgetSortOrder || "added";
 
   if (!state.budgets || state.budgets.length === 0) {
     container.innerHTML = `<p class="text-xs text-gray-400">No active budgets.</p>`;
@@ -1072,27 +1068,26 @@ function renderBudgetsSettingsList() {
     container.innerHTML = "";
     sortedBudgets.forEach((budget) => {
       const div = document.createElement("div");
-      div.className = "flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-black/20 rounded-md border border-gray-600 gap-3";
+      div.className = "settings-budget-row";
       div.dataset.budgetId = budget.id;
       
       const catList = budget.categories.join(", ");
+      const month = getCurrentDateString().slice(0, 7);
+      const spent = state.transactions.filter(item => item.type === "expense" && item.date.startsWith(month) && budget.categories.includes(item.category)).reduce((sum, item) => sum + item.amount, 0);
+      const percent = budget.limit > 0 ? spent / budget.limit * 100 : (spent > 0 ? 100 : 0);
     
     div.innerHTML = `
-      <div class="flex-grow min-w-0">
-        <div class="flex items-center justify-between sm:justify-start gap-2 mb-1">
-          <h4 class="font-medium text-gray-200 truncate">${escapeHTML(budget.name)}</h4>
-          <span class="text-sm font-semibold text-accent-500 whitespace-nowrap">${formatCurrency(budget.limit)}</span>
-        </div>
-        <p class="text-xs text-gray-400 line-clamp-2" data-tooltip="${escapeHTML(catList)}">Categories: ${escapeHTML(catList) || 'None'}</p>
-      </div>
-      <div class="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
-        <button type="button" class="btn btn-icon btn-sm" onclick="openEditBudgetModal('${budget.id}')" data-tooltip="Edit Budget">
-          <i class="fas fa-edit"></i>
+      <div class="settings-budget-heading"><h4>${escapeHTML(budget.name)}</h4><div class="settings-budget-actions">
+        <button type="button" class="settings-row-icon" aria-label="Edit ${escapeHTML(budget.name)}" data-record-action="editBudget" data-record-id="${escapeHTML(budget.id)}" data-tooltip="Edit Budget">
+          <i class="fas fa-pen" aria-hidden="true"></i>
         </button>
-        <button type="button" class="btn btn-icon-danger btn-sm" onclick="deleteBudget('${budget.id}')" data-tooltip="Delete Budget">
-          <i class="fas fa-trash-alt"></i>
+        <button type="button" class="settings-row-icon" aria-label="Delete ${escapeHTML(budget.name)}" data-record-action="deleteBudget" data-record-id="${escapeHTML(budget.id)}" data-tooltip="Delete Budget">
+          <i class="fas fa-trash-alt" aria-hidden="true"></i>
         </button>
-      </div>
+      </div></div>
+      ${catList === budget.name ? '' : `<p class="settings-budget-categories">${escapeHTML(catList) || 'No categories assigned'}</p>`}
+      <p class="settings-budget-spending ${percent > 100 ? 'text-expense' : ''}">${formatCurrency(spent)} of ${formatCurrency(budget.limit)} spent</p>
+      <div class="settings-budget-track" role="meter" aria-label="${escapeHTML(budget.name)} spending" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(percent, 100)}" aria-valuetext="${percent.toFixed(1)}% of budget"><span style="width:${Math.min(percent, 100)}%;background:var(--${percent > 100 ? 'expense-color' : percent > 70 ? 'accent-primary' : 'income-color'})"></span></div>
     `;
       container.appendChild(div);
     });
@@ -1105,10 +1100,10 @@ function renderBudgetsSettingsList() {
   }
 }
 
-function handleAddBudgetSubmit(event) {
+async function handleAddBudgetSubmit(event) {
   event.preventDefault();
   let nameInput = $("#addBudgetName").value.trim();
-  const limitInput = parseFloat(String($("#addBudgetLimit").value).replace(/,/g, ''));
+  const limitInput = parseAmountValue($("#addBudgetLimit").value);
   
   if (isNaN(limitInput) || limitInput <= 0) {
     showNotification("Please provide a valid budget limit.", "error");
@@ -1142,14 +1137,16 @@ function handleAddBudgetSubmit(event) {
 
   if (!state.budgets) state.budgets = [];
   state.budgets.push(newBudget);
+  state.settings.budgetReminderHandledMonth = getCurrentDateString().slice(0, 7);
   
-  saveData();
+  await saveData(state, {syncSettings:true});
   renderBudgetsSettingsList();
   $("#addBudgetForm").reset();
   buildBudgetCategoryCheckboxes("addBudgetCategoriesContainer");
   if (typeof renderCategoryBudgets === "function") renderCategoryBudgets();
   
   showNotification(`Budget "${nameInput}" created successfully.`, "success");
+  if ($("#settingsAddBudgetModal")?.style.display === "block") closeModal("settingsAddBudgetModal");
 }
 
 function openEditBudgetModal(budgetId) {
@@ -1165,11 +1162,11 @@ function openEditBudgetModal(budgetId) {
   openModalHelper("editBudgetModal");
 }
 
-function handleEditBudgetSubmit(event) {
+async function handleEditBudgetSubmit(event) {
   event.preventDefault();
   const id = $("#editBudgetId").value;
   let nameInput = $("#editBudgetName").value.trim();
-  const limitInput = parseFloat(String($("#editBudgetLimit").value).replace(/,/g, ''));
+  const limitInput = parseAmountValue($("#editBudgetLimit").value);
   
   if (isNaN(limitInput) || limitInput <= 0) {
     showNotification("Please provide a valid budget limit.", "error");
@@ -1202,7 +1199,8 @@ function handleEditBudgetSubmit(event) {
       limit: roundToTwoDecimals(limitInput),
       categories: selectedCategories
     };
-    saveData();
+    state.settings.budgetReminderHandledMonth = getCurrentDateString().slice(0, 7);
+    await saveData(state, {syncSettings:true});
     renderBudgetsSettingsList();
     closeModal("editBudgetModal");
     if (typeof renderCategoryBudgets === "function") renderCategoryBudgets();
@@ -1210,13 +1208,13 @@ function handleEditBudgetSubmit(event) {
   }
 }
 
-function deleteBudget(budgetId) {
+async function deleteBudget(budgetId) {
   const budget = state.budgets.find(b => b.id === budgetId);
   if (!budget) return;
   
   if (confirm(`Are you sure you want to delete the budget "${budget.name}"?`)) {
     state.budgets = state.budgets.filter(b => b.id !== budgetId);
-    saveData();
+    await saveData();
     renderBudgetsSettingsList();
     if (typeof renderCategoryBudgets === "function") renderCategoryBudgets();
     showNotification(`Budget deleted.`, "success");
@@ -1234,10 +1232,10 @@ setTimeout(() => {
   const sortSelect = $("#budgetSortOrderSelect");
   if (sortSelect) {
     sortSelect.value = state.settings?.budgetSortOrder || "added";
-    sortSelect.addEventListener("change", (e) => {
+    sortSelect.addEventListener("change", async (e) => {
       if (!state.settings) state.settings = {};
       state.settings.budgetSortOrder = e.target.value;
-      saveData();
+      await saveData();
       renderBudgetsSettingsList();
       if (typeof renderCategoryBudgets === "function") renderCategoryBudgets();
     });

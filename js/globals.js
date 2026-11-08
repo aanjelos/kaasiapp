@@ -5,6 +5,7 @@
 
 // --- GLOBAL ERROR SAFETY NET ---
 window.addEventListener('error', function(event) {
+  if (event.error?.kaasiSaveFailure) { event.preventDefault(); return; }
   console.error("Global Error Caught:", event.error);
   if (typeof showNotification === 'function') {
     showNotification("An unexpected error occurred. Please refresh if the app stops responding.", "error");
@@ -12,6 +13,7 @@ window.addEventListener('error', function(event) {
 });
 
 window.addEventListener('unhandledrejection', function(event) {
+  if (event.reason?.kaasiSaveFailure) { event.preventDefault(); return; }
   console.error("Unhandled Promise Rejection:", event.reason);
   if (typeof showNotification === 'function') {
     showNotification("An unexpected error occurred. Please refresh if the app stops responding.", "error");
@@ -26,7 +28,11 @@ const formatCurrency = (amount) => {
   return `LKR\u00A0${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
 };
 
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 4);
+// Only new records use UUIDs; existing and imported IDs remain unchanged.
+const generateId = () => crypto.randomUUID();
+
+// This saved reference follows renames; older backups fall back to the original name.
+const getTransferFeeCategory = () => state.settings.defaultTransferFeeCategory || 'Bank Charges';
 
 const escapeHTML = (str) => {
   if (!str) return "";
@@ -65,11 +71,11 @@ function trackEvent(action, category = "Engagement", label = "") {
 
 // Device-Specific Settings
 function getDeviceTheme() {
-  return localStorage.getItem("kaasi_device_theme") || "dark";
+  return appPreferences.getItem("kaasi_device_theme") || "dark";
 }
 
 function setDeviceTheme(theme) {
-  localStorage.setItem("kaasi_device_theme", theme);
+  appPreferences.setItem("kaasi_device_theme", theme);
 }
 
 
@@ -110,12 +116,12 @@ function getCurrentDateString() {
 }
 
 function getFormattedLocalStorageSize(key) {
-  const item = localStorage.getItem(key);
+  const item = lastPersistedStateJson;
   if (item === null) {
     return "N/A (No data found)";
   }
 
-  const sizeInBytes = item.length;
+  const sizeInBytes = new TextEncoder().encode(item).length;
 
   if (sizeInBytes < 1024) {
     return `${sizeInBytes} Bytes`;
@@ -189,7 +195,7 @@ function getDefaultState() {
         },
         {
           id: "bank_3",
-          name: "Genie",
+          name: "Sampath",
           balance: 0,
           hidden: false,
         },
@@ -199,7 +205,9 @@ function getDefaultState() {
         "Groceries",
         "Transportation",
         "Healthcare",
+        "Housing & Utilities",
         "Personal Care",
+        "Phone & Internet",
         "Shopping",
         "Entertainment",
         "Education",
@@ -236,429 +244,68 @@ function getDefaultState() {
           dimInTransactionLists: true
         },
         lastDismissedBudgetTipMonth: "",
-        budgetSortOrder: "added"
+        budgetSortOrder: "percent_desc"
       },
     })
   );
 }
 
-function openInitialSetupWizard() {
-  const modal = $("#initialSetupModal");
-  if (!modal) {
-    console.error("Initial Setup Modal not found in HTML.");
-    return;
-  }
-  console.log("Opening Initial Setup Wizard...");
-
-  const accountsContainer = $("#setupAccountBalances");
-  const defaultAccounts = getDefaultState().accounts;
-
-  // Create a temporary state for setup that can be modified without saving
-  let tempSetupAccounts = JSON.parse(JSON.stringify(defaultAccounts));
-
-  const updateTempStateFromDOM = () => {
-    tempSetupAccounts.forEach((acc) => {
-      const nameInput = accountsContainer.querySelector(`#setupName-${acc.id}`);
-      const balanceInput = accountsContainer.querySelector(
-        `#setupBalance-${acc.id}`
-      );
-
-      if (nameInput && !nameInput.readOnly) {
-        acc.name = nameInput.value.trim() || acc.name;
-      }
-      if (balanceInput) {
-        const balanceValue = parseFloat(String(balanceInput.value).replace(/,/g, ''));
-        // Only update if it's a valid number, otherwise keep the old value
-        if (!isNaN(balanceValue)) {
-          // We don't round here, just store what the user typed. Rounding happens on final save.
-          acc.balance = balanceValue;
-        }
-      }
-    });
-  };
-
-  const renderSetupAccounts = () => {
-    accountsContainer.innerHTML = "";
-    tempSetupAccounts.forEach((acc) => {
-      const accRow = document.createElement("div");
-      // A consistent 3-column grid for all rows: Icon, Name, Balance
-      accRow.className = `grid grid-cols-[auto,2fr,3fr] gap-x-3 items-center mb-2 account-row`;
-      if (acc.hidden) {
-        accRow.classList.add("account-row-hidden");
-      }
-
-      const inputStyle = `style="background-color: var(--bg-secondary); border-color: var(--border-color); color: var(--text-primary);"`;
-
-      // 1. Hide/Show Button
-      const hideButton = document.createElement("button");
-      hideButton.type = "button";
-      hideButton.className = "btn-icon-hide justify-self-center";
-      hideButton.dataset.accountId = acc.id;
-      hideButton.innerHTML = `<i class="fas ${
-        acc.hidden ? "fa-eye-slash" : "fa-eye"
-      }"></i>`;
-
-      hideButton.onclick = () => {
-        updateTempStateFromDOM(); // Save current input values before re-rendering
-        const accountToToggle = tempSetupAccounts.find(
-          (a) => a.id === acc.id
-        );
-        if (accountToToggle) {
-          accountToToggle.hidden = !accountToToggle.hidden;
-          renderSetupAccounts(); // Re-render the list to reflect the change
-        }
-      };
-      accRow.appendChild(hideButton);
-
-      // 2. Name field (Label for Cash, Input for others)
-      const nameWrapper = document.createElement("div");
-      if (acc.id === "cash") {
-        nameWrapper.innerHTML = `<label for="setupBalance-${acc.id}" class="text-sm font-medium text-gray-300 justify-self-start">${escapeHTML(acc.name)}</label>`;
-      } else {
-        nameWrapper.innerHTML = `<input type="text" id="setupName-${acc.id}" name="setupName-${acc.id}" value="${escapeHTML(acc.name)}" data-account-id="${acc.id}" class="text-sm w-full rounded placeholder-gray-400" ${inputStyle} placeholder="Account Name">`;
-      }
-      accRow.appendChild(nameWrapper);
-
-      // 3. Balance field (Input for all)
-      const balanceWrapper = document.createElement("div");
-      balanceWrapper.className = "flex-1 relative flex items-center w-full";
-      
-      const balanceValue = acc.balance !== 0 || acc.id === "cash" ? acc.balance.toString() : "";
-      balanceWrapper.innerHTML = `<input type="text" inputmode="decimal" class="calc-amount" id="setupBalance-${acc.id}" name="setupBalance-${acc.id}" value="${balanceValue}" data-account-id="${acc.id}" step="0.01" placeholder="0.00 (Optional)" class="text-sm w-full rounded placeholder-gray-400" ${inputStyle}>`;
-      accRow.appendChild(balanceWrapper);
-
-      accountsContainer.appendChild(accRow);
-    });
-  };
-
-  renderSetupAccounts();
-
-  const setupEnableCcToggle = $("#setupEnableCc");
-  const setupCcLimitGroup = $("#setupCcLimitGroup");
-  const setupCcLimitInput = $("#setupCcLimit");
-  if (setupEnableCcToggle && setupCcLimitGroup && setupCcLimitInput) {
-    setupEnableCcToggle.checked = true;
-    setupCcLimitGroup.style.display = "block";
-    setupCcLimitInput.required = true;
-    setupCcLimitInput.style.backgroundColor = "var(--bg-secondary)";
-    setupCcLimitInput.style.borderColor = "var(--border-color)";
-    setupCcLimitInput.style.color = "var(--text-primary)";
-
-    setupEnableCcToggle.onchange = () => {
-      if (setupEnableCcToggle.checked) {
-        setupCcLimitGroup.style.display = "block";
-        setupCcLimitInput.required = true;
-      } else {
-        setupCcLimitGroup.style.display = "none";
-        setupCcLimitInput.required = false;
-        setupCcLimitInput.value = "";
-      }
-    };
-  }
-
-  const categoriesContainer = $("#setupCategoriesList");
-  const newCategoryInputForSetup = $("#setupNewCategoryName");
-  const addCategoryBtn = $("#setupAddCategoryBtn");
-  let currentSetupCategories = [...getDefaultState().categories];
-
-  if (newCategoryInputForSetup) {
-    newCategoryInputForSetup.style.backgroundColor = "var(--bg-secondary)";
-    newCategoryInputForSetup.style.borderColor = "var(--border-color)";
-    newCategoryInputForSetup.style.color = "var(--text-primary)";
-  }
-
-  const renderSetupCategories = () => {
-    if (!categoriesContainer) return;
-    categoriesContainer.innerHTML = "";
-    currentSetupCategories
-      .sort((a, b) => a.localeCompare(b))
-      .forEach((cat) => {
-        const div = document.createElement("div");
-
-        div.className = "flex justify-between items-center p-2 rounded text-sm";
-        div.style.backgroundColor = "var(--bg-secondary)";
-        div.style.borderColor = "var(--border-color)";
-        div.style.borderWidth = "1px";
-
-        div.innerHTML = `
-              <span>${cat}</span>
-              <button type="button" class="text-red-400 hover:text-red-300 text-xs ml-2" data-category-name="${cat}" data-tooltip="Remove">
-                  <i class="fas fa-times"></i>
-              </button>
-          `;
-        div.querySelector("button").onclick = (e) => {
-          const catNameToRemove = e.currentTarget.dataset.categoryName;
-          currentSetupCategories = currentSetupCategories.filter(
-            (c) => c !== catNameToRemove
-          );
-          renderSetupCategories();
-        };
-        categoriesContainer.appendChild(div);
-      });
-  };
-
-  if (addCategoryBtn) {
-    addCategoryBtn.onclick = () => {
-      const newCat = newCategoryInputForSetup.value.trim();
-      if (
-        newCat &&
-        !currentSetupCategories.some(
-          (c) => c.toLowerCase() === newCat.toLowerCase()
-        )
-      ) {
-        currentSetupCategories.push(newCat);
-        renderSetupCategories();
-        newCategoryInputForSetup.value = "";
-      } else if (newCat) {
-        showNotification(`Category "${newCat}" already exists.`, "warning");
-      }
-      newCategoryInputForSetup.focus();
-    };
-  }
-  if (newCategoryInputForSetup) {
-    newCategoryInputForSetup.onkeypress = (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        if (addCategoryBtn) addCategoryBtn.click();
-      }
-    };
-  }
-  renderSetupCategories();
-
-  $("#initialSetupForm").onsubmit = (event) => {
-    updateTempStateFromDOM(); // Final save of values before submitting
-    handleInitialSetupSubmit(event, tempSetupAccounts);
-  };
-  $("#setupImportInput").onchange = handleSetupImport;
-
-  const cloudLoginBtn = $("#setupCloudLoginBtn");
-  if (cloudLoginBtn) {
-    cloudLoginBtn.onclick = () => {
-      if (typeof signInWithGoogle === "function") {
-        signInWithGoogle();
-      }
-    };
-  }
-
-  modal.style.display = "block";
-  if (typeof updateBodyScrollState === "function") {
-    updateBodyScrollState();
-  }
-  displayAppVersion();
-}
-
-function handleInitialSetupSubmit(event, tempSetupAccounts) {
-  event.preventDefault();
-  console.log("Handling initial setup form submission...");
-  let newState = getDefaultState();
-
-  newState.accounts = tempSetupAccounts.map((acc) => {
-    const nameInput = $(`#setupName-${acc.id}`);
-    const balanceInput = $(`#setupBalance-${acc.id}`);
-
-    let finalName = acc.name;
-    if (acc.id !== "cash" && nameInput) {
-      const enteredName = nameInput.value.trim();
-      if (enteredName) {
-        finalName = enteredName;
-      }
-    }
-
-    let balance = 0;
-    if (balanceInput) {
-      const balanceStr = balanceInput.value.trim();
-      if (balanceStr !== "" && balanceStr !== null) {
-        const parsedBalance = parseFloat(String(balanceStr).replace(/,/g, ''));
-        balance = isNaN(parsedBalance) ? 0 : parsedBalance;
-      }
-    }
-
-    return {
-      id: acc.id,
-      name: finalName,
-      balance: roundToTwoDecimals(balance),
-      hidden: acc.hidden, // Capture the hidden state
-    };
-  });
-
-  const ccEnabled = $("#setupEnableCc").checked;
-  newState.settings.showCcDashboardSection = ccEnabled;
-  if (ccEnabled) {
-    const ccLimitStr = $("#setupCcLimit").value.trim();
-    if (ccLimitStr === "" || ccLimitStr === null) {
-      newState.creditCard.limit = 0;
-    } else {
-      const limit = parseFloat(String(ccLimitStr).replace(/,/g, ''));
-      newState.creditCard.limit = roundToTwoDecimals(
-        isNaN(limit) || limit < 0 ? 0 : limit
-      );
-    }
-  } else {
-    newState.creditCard.limit = 0;
-  }
-
-  const finalCategories = [];
-  $$("#setupCategoriesList span").forEach((span) =>
-    finalCategories.push(span.textContent)
-  );
-  newState.categories =
-    finalCategories.length > 0
-      ? finalCategories.sort((a, b) => a.localeCompare(b))
-      : getDefaultState().categories;
-  newState.settings.initialSetupDone = true;
-  state = newState;
-  saveData();
-  closeModal("initialSetupModal");
-  initializeUI(true);
-  showNotification("Setup complete! Welcome to Kaasi.", "success", 5000);
-}
-
-function handleSetupImport(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  console.log("Importing data from setup wizard...");
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    let importedData;
-    try {
-      importedData = JSON.parse(e.target.result);
-      if (importedData && typeof importedData === "object") {
-        console.log("USING SHARED SANITIZE FUNCTION IN GLOBALS.JS");
-        sanitizeAndMergeImportedData(importedData);
-
-
-        if (!state.settings) state.settings = getDefaultState().settings;
-        state.settings.initialSetupDone = true; // Mark setup as done
-
-        saveData();
-        closeModal("initialSetupModal");
-        initializeUI(true); // Full refresh
-        showNotification(
-          "Data imported and sanitized successfully from setup wizard!",
-          "success"
-        );
-      } else {
-        throw new Error("Invalid data structure in imported file.");
-      }
-    } catch (error) {
-      console.error("Import failed during setup:", error);
-      showNotification(
-        `Import failed: ${error.message}. Please try manual setup or a valid file.`,
-        "error",
-        10000
-      );
-    } finally {
-      event.target.value = null; // Clear the file input
-    }
-  };
-  reader.onerror = () => {
-    showNotification("Failed to read the import file.", "error");
-    event.target.value = null;
-  };
-  reader.readAsText(file);
-}
-
-function sanitizeNumericFields(array, fields) {
-  if (!Array.isArray(array)) return;
-  array.forEach((item) => {
-    fields.forEach((field) => {
-      if (typeof item[field] === "number") {
-        item[field] = roundToTwoDecimals(item[field]);
-      }
-    });
-  });
-}
+function openInitialSetupWizard() { Onboarding.open(); }
 
 function sanitizeAndMergeImportedData(importedData) {
-  sanitizeNumericFields(importedData.transactions, ["amount"]);
-  sanitizeNumericFields(importedData.accounts, ["balance"]);
-  sanitizeNumericFields(importedData.debts, ["amount", "originalAmount", "remainingAmount"]);
-  sanitizeNumericFields(importedData.receivables, ["amount", "originalAmount", "remainingAmount"]);
-  sanitizeNumericFields(importedData.installments, ["monthlyAmount", "originalFullAmount"]);
-  sanitizeNumericFields(importedData.budgets, ["limit"]);
-
-  if (
-    importedData.creditCard &&
-    typeof importedData.creditCard === "object"
-  ) {
-    if (typeof importedData.creditCard.limit === "number") {
-      importedData.creditCard.limit = roundToTwoDecimals(
-        importedData.creditCard.limit
-      );
-    }
-    if (Array.isArray(importedData.creditCard.transactions)) {
-      sanitizeNumericFields(importedData.creditCard.transactions, ["amount", "paidAmount"]);
-      importedData.creditCard.transactions.forEach((ccTrans) => {
-        if (
-          ccTrans.paidAmount >=
-          roundToTwoDecimals(ccTrans.amount - 0.005)
-        ) {
-          ccTrans.paidOff = true;
-          ccTrans.paidAmount = ccTrans.amount;
-        } else {
-          ccTrans.paidOff = false;
-        }
-      });
-    }
-  }
-
-  state = deepMerge(getDefaultState(), importedData);
-  ensureDefaultAccounts();
-  ensureDefaultCategories();
-
-  state.accounts.forEach((acc) => {
-    if (isNaN(acc.balance) || typeof acc.balance !== "number")
-      acc.balance = 0;
-    else acc.balance = roundToTwoDecimals(acc.balance);
-  });
-
-  if (!state.creditCard)
-    state.creditCard = { limit: 0, transactions: [] };
-  if (
-    isNaN(state.creditCard.limit) ||
-    typeof state.creditCard.limit !== "number"
-  )
-    state.creditCard.limit = 0;
-  else
-    state.creditCard.limit = roundToTwoDecimals(
-      state.creditCard.limit
-    );
-
-  if (!Array.isArray(state.creditCard.transactions))
-    state.creditCard.transactions = [];
-  state.creditCard.transactions.forEach((t) => {
-    if (typeof t.amount !== "number" || isNaN(t.amount)) t.amount = 0;
-    else t.amount = roundToTwoDecimals(t.amount);
-    if (typeof t.paidAmount !== "number" || isNaN(t.paidAmount))
-      t.paidAmount = 0;
-    else t.paidAmount = roundToTwoDecimals(t.paidAmount);
-    if (t.paidAmount >= roundToTwoDecimals(t.amount - 0.005)) {
-      t.paidOff = true;
-      t.paidAmount = t.amount;
-    } else {
-      t.paidOff = false;
-    }
-    if (!t.timestamp) t.timestamp = new Date(t.date).getTime();
-  });
-  state.transactions.forEach((t) => {
-    if (!t.timestamp) t.timestamp = new Date(t.date).getTime();
-  });
-  state.debts.forEach((d) => {
-    if (!d.timestamp) d.timestamp = new Date(d.dueDate).getTime();
-  });
-  state.receivables.forEach((r) => {
-    if (!r.timestamp) r.timestamp = new Date(r.dateGiven).getTime();
-  });
-  state.installments.forEach((i) => {
-    if (!i.timestamp) i.timestamp = new Date(i.startDate).getTime();
-  });
+  return prepareImportedData(importedData);
 }
 
 const STORAGE_KEY = "KaasiData";
+let lastPersistedStateJson = null;
+
+function restoreStateSnapshot(current, saved) {
+  if (Array.isArray(saved)) {
+    if (!Array.isArray(current)) return saved;
+    const byId = new Map(current.filter(item => item && typeof item === "object" && item.id).map(item => [item.id, item]));
+    const restored = saved.map(value => {
+      const existing = value && typeof value === "object" && value.id
+        ? byId.get(value.id) : undefined;
+      return restoreStateSnapshot(existing, value);
+    });
+    current.splice(0, current.length, ...restored);
+    return current;
+  }
+  if (saved && typeof saved === "object") {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return saved;
+    Object.keys(current).forEach(key => { if (!Object.prototype.hasOwnProperty.call(saved, key)) delete current[key]; });
+    Object.keys(saved).forEach(key => {
+      if (!["__proto__", "constructor", "prototype"].includes(key)) current[key] = restoreStateSnapshot(current[key], saved[key]);
+    });
+    return current;
+  }
+  return saved;
+}
+
+// Portable data excludes device-only prompt state; never mutate the saved source.
+function portableKaasiData(value) {
+  const copy = JSON.parse(JSON.stringify(value));
+  if (Array.isArray(copy.subscriptionOccurrences)) {
+    copy.subscriptionOccurrences = copy.subscriptionOccurrences.filter(row => row.status !== 'snoozed').map(row => {
+      delete row.snoozedUntil;
+      delete row.reminderDismissed;
+      return row;
+    });
+    if (!copy.subscriptionOccurrences.length) delete copy.subscriptionOccurrences;
+  }
+  if (copy.settings) {
+    delete copy.settings.lastDismissedBudgetTipMonth;
+    delete copy.settings.hideCashCounter;
+  }
+  return copy;
+}
 
 function generateDataHash(str) {
   if (!str) return null;
+  // Object-store reconstruction may change object-key order without changing data.
+  if (typeof KaasiStorage !== "undefined" && KaasiStorage.canonical) {
+    try { str = KaasiStorage.canonical(portableKaasiData(JSON.parse(str))); } catch (_) { /* Non-JSON metadata retains its original representation. */ }
+  }
   let hash = 0;
   for (let i = 0, len = str.length; i < len; i++) {
     let chr = str.charCodeAt(i);
@@ -668,189 +315,51 @@ function generateDataHash(str) {
   return hash.toString();
 }
 
-function saveData() {
+async function saveData(nextState = state, options = {}) {
+  if (storageOperationPending) throw new Error("A save is already in progress. Please wait.");
+  storageOperationPending = true;
+  let serialized;
+  let milestoneResult;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem("lastLocalDataModification", Date.now().toString());
-    
-
-    // Update window.currentCloudSyncStatus to local_newer immediately
-    const lastLocalCloudSync = parseInt(localStorage.getItem("lastLocalCloudSync") || "0", 10);
-    const lastLocalDataModification = Date.now();
-    if (lastLocalDataModification > lastLocalCloudSync + 2000) {
-      const currentDataStr = localStorage.getItem(STORAGE_KEY);
-      const currentHash = generateDataHash(currentDataStr);
-      const syncedHash = localStorage.getItem("kaasi_synced_state_hash");
-
-      if (currentHash && syncedHash && currentHash === syncedHash) {
-        // Data is identical to what was last synced!
-        if (window.currentCloudSyncStatus === "local_newer") {
-          window.currentCloudSyncStatus = "synced";
-        }
-      } else {
-        window.currentCloudSyncStatus = "local_newer";
-      }
-    }
-    if (typeof updateHeaderShortcutButtons === "function") {
-      updateHeaderShortcutButtons();
-    }
-
-    
-    console.log("Data saved successfully.");
-  } catch (e) {
-    console.error("Error saving data to localStorage:", e);
-    if (e.name === "QuotaExceededError") {
-      showNotification(
-        "Error: Local storage quota exceeded. Data is too large to save.",
-        "error",
-        10000
-      );
-    } else {
-      showNotification("Error saving data. Check console.", "error", 10000);
-    }
+    if (nextState.settings) delete nextState.settings.hideCashCounter;
+    if (typeof Milestones !== 'undefined' && !options.skipMilestones) milestoneResult = Milestones.prepare(nextState, options.milestoneEvent);
+    serialized = JSON.stringify(nextState);
+    await KaasiStorage.commit(JSON.parse(serialized), { lastLocalDataModification: Date.now().toString() });
+  } catch (cause) {
+    if (lastPersistedStateJson !== null) state = restoreStateSnapshot(state, JSON.parse(lastPersistedStateJson));
+    const error = new Error(cause.name === "QuotaExceededError"
+      ? "Changes were not saved: device storage is full. Your last saved data is unchanged. Export a backup and free space before retrying."
+      : cause.name === "KaasiConflictError" ? cause.message : "Changes were not saved. Your last saved data is unchanged. Please retry or export a backup.");
+    error.kaasiSaveFailure = true;
+    showNotification(error.message, "error", 10000);
+    if (cause.name === "KaasiConflictError") showStorageFailure(cause);
+    throw error;
+  } finally {
+    storageOperationPending = false;
   }
+  state = nextState;
+  lastPersistedStateJson = serialized;
+  if (milestoneResult) Milestones.committed(milestoneResult);
+  if (typeof noteCloudSyncSave === 'function') noteCloudSyncSave(options.syncSettings === true);
+  const syncedHash = appPreferences.getItem("kaasi_synced_state_hash");
+  window.currentCloudSyncStatus = syncedHash && generateDataHash(serialized) === syncedHash ? "synced" : "local_newer";
+  if (typeof updateLocalCloudSyncStatus === "function") await updateLocalCloudSyncStatus();
+  if (typeof updateHeaderShortcutButtons === "function") updateHeaderShortcutButtons();
+  if (typeof scheduleAutomaticCloudSync === 'function') scheduleAutomaticCloudSync();
+  return true;
 }
 
 function loadData() {
-  const d = localStorage.getItem(STORAGE_KEY);
-  let parsedData = null;
-
-  if (d) {
-    console.log("Uncompressed data found. Attempting to parse...");
-    try {
-      parsedData = JSON.parse(d);
-    } catch (e) {
-      console.error("Error parsing data from localStorage:", e);
-
-      showNotification(
-        "Error loading data. Data might be corrupted. Starting fresh.",
-        "error",
-        8000
-      );
-    }
-  }
-
-  state = getDefaultState();
-
-  if (parsedData && typeof parsedData === "object") {
-    console.log("Merging loaded data into default state structure...");
-
-    state = deepMerge(state, parsedData);
-    console.log("Data merged successfully.");
-  } else if (d && !parsedData) {
-    console.log(
-      "Previous data existed but was unparsable. Using fresh default state."
-    );
-  } else {
-    console.log(
-      "No saved data found or data was null/invalid. Starting with fresh default state."
-    );
-  }
-
-  const defaultStateTemplate = getDefaultState();
-
-  if (!state.settings || typeof state.settings !== "object") {
-    console.warn(
-      "State.settings was missing or invalid after merge. Resetting to default settings structure."
-    );
-    state.settings = { ...defaultStateTemplate.settings };
-  } else {
-    for (const settingKey in defaultStateTemplate.settings) {
-      if (state.settings[settingKey] === undefined) {
-        state.settings[settingKey] = defaultStateTemplate.settings[settingKey];
-      }
-    }
-    
-    // Ensure hiddenCategoryRules is initialized
-    if (!state.settings.hiddenCategoryRules || typeof state.settings.hiddenCategoryRules !== "object") {
-      state.settings.hiddenCategoryRules = { ...defaultStateTemplate.settings.hiddenCategoryRules };
-    } else {
-      for (const rule in defaultStateTemplate.settings.hiddenCategoryRules) {
-        if (state.settings.hiddenCategoryRules[rule] === undefined) {
-          state.settings.hiddenCategoryRules[rule] = defaultStateTemplate.settings.hiddenCategoryRules[rule];
-        }
-      }
-    }
-  }
-
-  if (!state.creditCard || typeof state.creditCard !== "object") {
-    console.warn(
-      "State.creditCard was missing or invalid after merge. Resetting to default creditCard structure."
-    );
-    state.creditCard = { ...defaultStateTemplate.creditCard };
-    if (!Array.isArray(state.creditCard.transactions)) {
-      state.creditCard.transactions = [];
-    }
-  } else {
-    for (const ccKey in defaultStateTemplate.creditCard) {
-      if (state.creditCard[ccKey] === undefined) {
-        state.creditCard[ccKey] = defaultStateTemplate.creditCard[ccKey];
-      }
-    }
-    if (!Array.isArray(state.creditCard.transactions)) {
-      state.creditCard.transactions = [];
-    }
-  }
-
-  if (!Array.isArray(state.hiddenCategories)) {
-    state.hiddenCategories = [];
-  }
-  
-  if (state.categorySettings !== undefined) {
-    delete state.categorySettings; // Cleanup old state structure
-  }
-
-  if (!Array.isArray(state.transactions)) state.transactions = [];
-  if (!Array.isArray(state.accounts)) state.accounts = [];
-  if (!Array.isArray(state.categories)) state.categories = [];
-  if (!Array.isArray(state.debts)) state.debts = [];
-  if (!Array.isArray(state.receivables)) state.receivables = [];
-  if (!Array.isArray(state.installments)) state.installments = [];
-  if (!Array.isArray(state.budgets)) state.budgets = [];
-
-  ensureDefaultAccounts();
-  ensureDefaultCategories();
-
-  state.accounts.forEach((a) => {
-    if (isNaN(a.balance) || typeof a.balance !== "number") a.balance = 0;
-  });
-
-  if (
-    isNaN(state.creditCard.limit) ||
-    typeof state.creditCard.limit !== "number"
-  )
-    state.creditCard.limit = 0;
-  state.creditCard.transactions.forEach((t) => {
-    if (t.paidAmount === undefined || typeof t.paidAmount !== "number")
-      t.paidAmount = 0;
-    if (t.paidOff === undefined) t.paidOff = t.paidAmount >= t.amount - 0.005;
-    if (!t.timestamp) t.timestamp = new Date(t.date).getTime();
-  });
-
-  state.transactions.forEach((t) => {
-    if (!t.timestamp) t.timestamp = new Date(t.date).getTime();
-  });
-
-  state.debts.forEach((item) => {
-    if (!item.timestamp) item.timestamp = new Date(item.dueDate).getTime();
-    if (item.originalAmount === undefined) item.originalAmount = item.amount;
-  });
-
-  state.receivables.forEach((item) => {
-    if (!item.timestamp) item.timestamp = new Date(item.dateGiven).getTime();
-    if (item.originalAmount === undefined) item.originalAmount = item.amount;
-  });
-
-  state.installments.forEach((item) => {
-    if (!item.timestamp) item.timestamp = new Date(item.startDate).getTime();
-  });
-
-  console.log("Data loaded and integrity checks completed.");
+  if (!KaasiStorage.ready) throw new Error("Local data is not ready. Complete storage initialization first.");
+  state = KaasiStorage.current;
+  if (typeof Milestones !== 'undefined') Milestones.baseline(state);
+  lastPersistedStateJson = JSON.stringify(state);
 }
 
 function deepMerge(target, source) {
   for (const key in source) {
-    if (source.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(source, key) &&
+        !["__proto__", "constructor", "prototype"].includes(key)) {
       const sourceValue = source[key];
       const targetValue = target[key];
 
@@ -876,27 +385,27 @@ function deepMerge(target, source) {
   return target;
 }
 
-function ensureDefaultAccounts() {
+function ensureDefaultAccounts(targetState = state) {
   const defaultAccounts = getDefaultState().accounts;
-  if (!Array.isArray(state.accounts)) {
+  if (!Array.isArray(targetState.accounts)) {
     console.warn(
       "state.accounts was not an array. Resetting to default accounts structure."
     );
-    state.accounts = JSON.parse(JSON.stringify(defaultAccounts));
+    targetState.accounts = JSON.parse(JSON.stringify(defaultAccounts));
 
-    state.accounts.forEach((acc) => (acc.balance = 0));
+    targetState.accounts.forEach((acc) => (acc.balance = 0));
     return;
   }
 
   defaultAccounts.forEach((defaultAcc) => {
-    const existingAccount = state.accounts.find(
+    const existingAccount = targetState.accounts.find(
       (acc) => acc.id === defaultAcc.id
     );
     if (!existingAccount) {
       console.warn(
         `Default account '${defaultAcc.name}' (ID: ${defaultAcc.id}) was missing. Adding it.`
       );
-      state.accounts.push({
+      targetState.accounts.push({
         ...defaultAcc,
         balance: 0,
       });
@@ -916,34 +425,34 @@ function ensureDefaultAccounts() {
   });
 }
 
-function ensureDefaultCategories() {
+function ensureDefaultCategories(targetState = state) {
   const defaultCategories = getDefaultState().categories;
 
-  if (!state.categories || !Array.isArray(state.categories)) {
+  if (!targetState.categories || !Array.isArray(targetState.categories)) {
     console.warn(
       "state.categories was missing or not an array. Initializing as empty array."
     );
-    state.categories = [];
+    targetState.categories = [];
   }
 
-  if (state.categories.length === 0) {
+  if (targetState.categories.length === 0) {
     console.warn(
       "state.categories is empty. Populating with default categories."
     );
-    state.categories = JSON.parse(JSON.stringify(defaultCategories));
+    targetState.categories = JSON.parse(JSON.stringify(defaultCategories));
   }
 
-  state.categories.sort((a, b) => a.localeCompare(b));
+  targetState.categories.sort((a, b) => a.localeCompare(b));
 
   const otherCategory = "Other";
   if (
-    !state.categories.some(
+    !targetState.categories.some(
       (cat) => cat.toLowerCase() === otherCategory.toLowerCase()
     )
   ) {
     console.warn("'Other' category was missing. Adding it back.");
-    state.categories.push(otherCategory);
-    state.categories.sort((a, b) => a.localeCompare(b));
+    targetState.categories.push(otherCategory);
+    targetState.categories.sort((a, b) => a.localeCompare(b));
   }
 }
 window.triggerHapticFeedback = function(duration = 55) {
@@ -968,6 +477,11 @@ function showNotification(message, type = "success", duration = 4000) {
 
   let bgColor, textColor, borderStyle;
   switch (type) {
+    case "achievement":
+      bgColor = "var(--bg-tertiary)";
+      textColor = "var(--text-primary)";
+      borderStyle = "1px solid var(--accent-primary)";
+      break;
     case "error":
       bgColor = "var(--expense-color)";
       textColor = "#ffffff";
@@ -994,11 +508,18 @@ function showNotification(message, type = "success", duration = 4000) {
   n.style.backgroundColor = bgColor;
   n.style.color = textColor;
   n.style.border = borderStyle;
+  n.style.transition = 'transform 300ms ease-out, opacity 300ms ease-out';
   
-  n.setAttribute("role", "alert");
-  n.setAttribute("aria-live", "assertive");
+  const urgent = type === 'error' || type === 'warning';
+  n.setAttribute("role", urgent ? "alert" : "status");
+  n.setAttribute("aria-live", urgent ? "assertive" : "polite");
 
   n.textContent = message;
+  if (type === 'achievement') {
+    const icon=document.createElement('i'); icon.className='fas fa-award'; icon.setAttribute('aria-hidden','true');
+    icon.style.color='var(--accent-primary)'; icon.style.marginRight='8px'; n.prepend(icon);
+    n.setAttribute('role','status'); n.setAttribute('aria-live','polite');
+  }
   area.appendChild(n);
   void n.offsetWidth;
   requestAnimationFrame(() => {
@@ -1006,17 +527,71 @@ function showNotification(message, type = "success", duration = 4000) {
     n.classList.add("translate-x-0", "opacity-100");
   });
   setTimeout(() => {
+    const remove = () => n.remove();
+    n.addEventListener("transitionend", remove, { once: true });
     n.classList.remove("translate-x-0", "opacity-100");
     n.classList.add("translate-x-full", "opacity-0");
-    n.addEventListener("transitionend", () => n.remove(), {
-      once: true,
-    });
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) remove();
+    else setTimeout(remove, 350);
   }, duration);
 }
 
+function compareCategoryNames(a, b) {
+  const aOther = a.toLowerCase() === "other", bOther = b.toLowerCase() === "other";
+  return aOther === bOther ? a.localeCompare(b) : aOther ? 1 : -1;
+}
+
+function updateTransferAccountOptions() {
+  const from = document.getElementById("transferFrom");
+  const to = document.getElementById("transferTo");
+  if (!from || !to) return;
+  const accounts = state.accounts.filter((account) => !account.hidden);
+  const valid = (value) => accounts.some((account) => account.id === value);
+  const fromValue = valid(from.value) ? from.value : (accounts.find((account) => account.id !== 'cash')?.id || accounts[0]?.id || "");
+  const toValue = valid(to.value) && to.value !== fromValue ? to.value : (accounts.find((account) => account.id === 'cash' && account.id !== fromValue)?.id || accounts.find((account) => account.id !== fromValue)?.id || "");
+  const fill = (select, selected, disabledId) => {
+    select.innerHTML = "";
+    if (!selected) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No other account available";
+      select.appendChild(option);
+    }
+    accounts.forEach((account) => {
+      const option = document.createElement("option");
+      option.value = account.id;
+      option.textContent = `${account.name} (${formatCurrency(account.balance)})`;
+      option.disabled = account.id === disabledId;
+      select.appendChild(option);
+    });
+    select.value = selected;
+  };
+  fill(from, fromValue, null);
+  fill(to, toValue, fromValue);
+  const type = document.getElementById("transactionType");
+  const transferOption = type?.querySelector('option[value="transfer"]');
+  if (transferOption) {
+    transferOption.hidden = accounts.length < 2;
+    transferOption.disabled = accounts.length < 2;
+    if (accounts.length < 2 && type.value === "transfer") {
+      type.value = "expense";
+      if (typeof type.onchange === "function") type.onchange();
+    }
+  }
+  if (!from.dataset.transferBound) {
+    from.addEventListener("change", updateTransferAccountOptions);
+    to.addEventListener("change", updateTransferAccountOptions);
+    from.dataset.transferBound = "true";
+  }
+}
+
 function populateDropdowns() {
+  const ccPurchaseCategory = document.getElementById("ccPurchaseCategory");
+  if (ccPurchaseCategory) {
+    ccPurchaseCategory.innerHTML = ccPurchaseCategoryOptions(getCcPurchaseCategory({category: ccPurchaseCategory.value}));
+  }
   const accountSelects = $$(
-    'select[name="account"], select[name="transferFrom"], select[name="transferTo"], select[name="receivableSourceAccount"], select[name="payDebtAccount"], select[name="recPaymentAccount"], select[name="instPayAccount"], select[name="ccPayFromAccount"], #modalAccount, #recSourceAccountAdd, #recSourceAccountEdit, #modalCcPayFromAccount, #modalInstPayAccount, #modalPayDebtAccount, #modalTransferFrom, #modalTransferTo'
+    'select[name="account"], select[name="receivableSourceAccount"], select[name="payDebtAccount"], select[name="recPaymentAccount"], select[name="instPayAccount"], select[name="ccPayFromAccount"], #modalAccount, #recSourceAccountAdd, #recSourceAccountEdit, #modalCcPayFromAccount, #modalInstPayAccount, #modalPayDebtAccount, #modalTransferFrom, #modalTransferTo'
   );
   const categorySelects = $$(
     "#category, #modalCategory, #modalPayDebtCategory, #modalInstPayCategory, #modalCcPayCategory"
@@ -1045,6 +620,7 @@ function populateDropdowns() {
       }
     }
   });
+  updateTransferAccountOptions();
 
   const populateCategorySelect = (selectEl) => {
     if (!selectEl) return;
@@ -1142,7 +718,7 @@ function populateDropdowns() {
       (c) =>
         c.toLowerCase() !== "income" &&
         c.toLowerCase() !== "credit card payment"
-    ).sort((a, b) => a.localeCompare(b));
+    ).sort(compareCategoryNames);
 
     generalCategories.forEach((c) => {
       const label = document.createElement("label");

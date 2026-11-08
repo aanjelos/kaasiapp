@@ -20,11 +20,14 @@ function openShortcutsHelpModal() {
     { key: "S", action: "Open Settings (In Dashboard)." },
     { key: "S", action: "Start Search (In All Transactions)." },
     { key: "C", action: "Start a CC Transaction." },
-    { key: "D", action: "View All Debts." },
-    { key: "R", action: "View All Receivables." },
+    { key: "D", action: "Add a Debt." },
+    { key: "Shift + D", action: "View All Debts." },
+    { key: "R", action: "Add a Receivable." },
+    { key: "Shift + R", action: "View All Receivables." },
     { key: "T", action: "Transfer Money." },
-    { key: "Ctrl + E", action: "Export Data." },
-    { key: "Ctrl + I", action: "Import Data." },
+    { key: "Ctrl + S", action: "Sync Now (Signed In)." },
+    { key: "Ctrl + E", action: "Export Local File." },
+    { key: "Ctrl + I", action: "Import Local File." },
     { key: "← / →", action: "Navigate Month Tabs in All Transactions." },
   ];
 
@@ -61,6 +64,21 @@ function openShortcutsHelpModal() {
 }
 
 function handleKeyboardShortcuts(event) {
+  if (isAppLocked()) {
+    if ((event.ctrlKey || event.metaKey) && ["s", "e", "i"].includes(event.key.toLowerCase())) event.preventDefault();
+    return;
+  }
+  if (event.key === "Enter" && !event.defaultPrevented && !event.isComposing &&
+      !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey &&
+      event.target.matches?.("select:is(#category, #ccPurchaseCategory, #modalCategory, #modalCcPurchaseCategory)")) {
+    const category = event.target;
+    const dialog = topVisibleModal();
+    if (!category.disabled && category.form && (!dialog || dialog.contains(category))) {
+      event.preventDefault();
+      category.form.requestSubmit();
+      return;
+    }
+  }
   const activeElement = document.activeElement;
   const inInputField =
     activeElement &&
@@ -80,45 +98,29 @@ function handleKeyboardShortcuts(event) {
   const debtsModalVisible = $("#debtsViewModal")?.style.display === "block";
   const receivablesModalVisible =
     $("#receivablesViewModal")?.style.display === "block";
-
-  // --- MODIFIED: Ctrl+E for Export ---
-  if (event.ctrlKey && (event.key === "e" || event.key === "E")) {
-    if (!inInputField) {
-      event.preventDefault();
-      const target =
-        $("#shortcutCloud")?.checked && !$("#shortcutCloud")?.disabled
-          ? "cloud"
-          : "local";
-
-      if (target === "cloud") {
-        console.log("Shortcut: Ctrl+E pressed for Cloud Backup");
-        backupToSupabase();
-      } else {
-        console.log("Shortcut: Ctrl+E pressed for Local Export");
-        exportData();
-      }
-    }
-    return; // Consume the event
+  if (settingsModalVisible && event.key !== 'Escape') {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='s') event.preventDefault();
+    return;
+  }
+  const activeDialog=topVisibleModal();
+  if(activeDialog && event.key!=='Escape' && !(activeDialog.id==='monthlyViewModal' && ['s','S','ArrowLeft','ArrowRight'].includes(event.key) && !event.ctrlKey && !event.altKey && !event.metaKey)) {
+    if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s')event.preventDefault();
+    return;
   }
 
-  // --- MODIFIED: Ctrl+I for Import ---
-  if (event.ctrlKey && (event.key === "i" || event.key === "I")) {
-    if (!inInputField) {
-      event.preventDefault();
-      const target =
-        $("#shortcutCloud")?.checked && !$("#shortcutCloud")?.disabled
-          ? "cloud"
-          : "local";
-
-      if (target === "cloud") {
-        console.log("Shortcut: Ctrl+I pressed for Cloud Restore");
-        restoreFromSupabase(false, true);
-      } else {
-        console.log("Shortcut: Ctrl+I pressed for Local Import");
-        triggerDataImport();
+  // Dedicated actions are independent of the selected Dashboard button mode.
+  if (event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
+    const key = event.key.toLowerCase();
+    if (["s", "e", "i"].includes(key)) {
+      // Keep the browser's Save Page dialog from appearing on Ctrl+S.
+      if (key === "s" || !inInputField) event.preventDefault();
+      if (!inInputField && !event.repeat) {
+        if (key === "s") syncCloudData();
+        else if (key === "e") exportData();
+        else triggerDataImport();
       }
+      return;
     }
-    return; // Consume the event
   }
 
   // For other shortcuts, if a modifier key (Ctrl, Alt, Meta) is pressed, generally ignore,
@@ -226,6 +228,13 @@ function handleKeyboardShortcuts(event) {
     // --- END NEW ---
 
     case "Escape":
+      const topDialog = topVisibleModal();
+      if (topDialog && !['initialSetupModal','offlineSyncWarningModal'].includes(topDialog.id)) {
+        const search = $('#monthlySearchInput');
+        if (!(topDialog.id==='monthlyViewModal' && document.activeElement===search && search?.value)) {
+          event.preventDefault();closeModal(topDialog.id);break;
+        }
+      }
       const monthlySearchInput = $("#monthlySearchInput");
       if (
         monthlySearchInput &&
@@ -241,7 +250,8 @@ function handleKeyboardShortcuts(event) {
       } else {
         const modalsToClose = [
           "confirmationModal",
-          "formModal",
+          "formModal", "editBudgetModal", "settingsAddCategoryModal", "settingsAddBudgetModal", "subscriptionReminderModal", "upcomingPaymentsModal", "subscriptionsModal",
+          "cloudSyncModal",
           "transactionDetailModal",
           "ccHistoryModal",
           "cashCounterModal",
@@ -258,7 +268,8 @@ function handleKeyboardShortcuts(event) {
           const modal = $(`#${modalId}`);
           if (modal && modal.style.display === "block") {
             event.preventDefault();
-            closeModal(modalId);
+            if (modalId === "settingsModal" && typeof SettingsWorkspace !== "undefined") closeModal('settingsModal');
+            else closeModal(modalId);
             console.log(`Shortcut: Escape pressed, closing modal ${modalId}`);
             modalClosed = true;
             break;
@@ -294,6 +305,7 @@ function handleKeyboardShortcuts(event) {
     case "D":
       if (!inInputField) {
         event.preventDefault();
+        if (!event.shiftKey) { $("#addDebtBtn")?.click(); break; }
         const viewDebtsBtn = $("#viewDebtsBtn");
         if (viewDebtsBtn) {
           if ($("#debtsViewModal")?.style.display !== "block") {
@@ -311,6 +323,7 @@ function handleKeyboardShortcuts(event) {
     case "R":
       if (!inInputField) {
         event.preventDefault();
+        if (!event.shiftKey) { $("#addReceivableBtn")?.click(); break; }
         const viewReceivablesBtn = $("#viewReceivablesBtn");
         if (viewReceivablesBtn) {
           if ($("#receivablesViewModal")?.style.display !== "block") {
@@ -331,6 +344,10 @@ function handleKeyboardShortcuts(event) {
         const typeSelect = $("#transactionType");
         const amountInput = $("#amount");
         if (typeSelect && amountInput) {
+          if (typeSelect.querySelector('option[value="transfer"]')?.disabled) {
+            showNotification("At least two visible accounts are needed to make a transfer.", "warning");
+            break;
+          }
           typeSelect.value = "transfer";
           typeSelect.dispatchEvent(new Event("change"));
           amountInput.focus();
@@ -361,6 +378,25 @@ function handleKeyboardShortcuts(event) {
   }
 }
 
+// Record IDs are data, never JavaScript source embedded in an HTML handler.
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-record-action]");
+  if (!target || isAppLocked()) return;
+  const actions = {
+    editTransaction: openEditTransactionModal, deleteTransaction,
+    editDebt: openEditDebtForm, payDebt: openPayDebtForm, deleteDebt,
+    editReceivable: openEditReceivableForm, receivePayment: openReceivePaymentForm, deleteReceivable,
+    editInstallment: openEditInstallmentForm, payInstallment: payInstallmentMonth, deleteInstallment,
+    editCc: openEditCcTransactionModal, payCc: openPayCcItemForm, deleteCc: deleteCcTransaction,
+    selectCc: (id) => window.toggleCcItemSelection?.(id),
+    editBudget: openEditBudgetModal, deleteBudget
+  };
+  if (!Object.prototype.hasOwnProperty.call(actions, target.dataset.recordAction)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  actions[target.dataset.recordAction](target.dataset.recordId, event);
+}, true);
+
 // --- Helper function for month tab navigation ---
 function applyAppearance() {
   if (!state.settings) return;
@@ -387,6 +423,8 @@ function setupAppearanceListeners() {
   if (themeDarkBtn && themeLightBtn) {
     const updateThemeUI = () => {
       const theme = getDeviceTheme();
+      themeDarkBtn.setAttribute("aria-pressed", String(theme === "dark"));
+      themeLightBtn.setAttribute("aria-pressed", String(theme === "light"));
       if (theme === "dark") {
         themeDarkBtn.classList.add("border-accent-primary");
         themeDarkBtn.classList.remove("border-transparent");
@@ -420,7 +458,7 @@ function setupAppearanceListeners() {
 
 
 
-function toggleAccountVisibility(accountId) {
+async function toggleAccountVisibility(accountId) {
   const account = state.accounts.find((acc) => acc.id === accountId);
   if (!account) return;
 
@@ -431,9 +469,9 @@ function toggleAccountVisibility(accountId) {
       return;
     }
   }
-  const performToggle = () => {
+  const performToggle = async () => {
     account.hidden = !account.hidden;
-    saveData();
+    await saveData();
     renderDashboard();
     populateDropdowns();
     renderSettingsForm(); // Re-render settings to update the button and style
@@ -458,7 +496,7 @@ function toggleAccountVisibility(accountId) {
       "btn-primary" // Use a less destructive button color
     );
   } else {
-    performToggle(); // Hide if balance is zero or unhide without confirmation
+    await performToggle(); // Hide if balance is zero or unhide without confirmation
   }
 }
 
@@ -508,14 +546,15 @@ function updateCcDashboardSectionVisibility() {
 
 function openCashCounter() {
   const form = $("#cashCounterForm");
-  const denominations = [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
+  const denominations = [5000, 2000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
   const gridContainer = form.querySelector(".grid");
+  if (gridContainer.children.length > 3) { calculateCashTotal(); return; }
   while (gridContainer.children.length > 3)
     gridContainer.removeChild(gridContainer.lastChild);
   denominations.forEach((denom) => {
     const denomEl = document.createElement("span");
-    denomEl.className = "font-medium text-right pr-2 text-sm";
-    denomEl.textContent = `Rs. ${denom}`;
+    denomEl.className = "cash-denomination";
+    denomEl.textContent = denom.toLocaleString('en-US');
     const inputEl = document.createElement("input");
     inputEl.type = "number";
     inputEl.min = "0";
@@ -524,6 +563,7 @@ function openCashCounter() {
     inputEl.className =
       "text-center bg-gray-600 border border-gray-500 rounded px-1 py-0.5 w-16 mx-auto text-sm";
     inputEl.placeholder = "0";
+    inputEl.setAttribute("aria-label", `Number of Rs. ${denom} notes or coins`);
     inputEl.oninput = calculateCashTotal;
     inputEl.onkeydown = (e) => {
       if (['.', 'e', 'E', '-', '+'].includes(e.key)) e.preventDefault();
@@ -542,16 +582,25 @@ function openCashCounter() {
       }
     });
     const totalEl = document.createElement("span");
-    totalEl.className = "text-right text-gray-400 text-sm";
+    totalEl.className = "cash-row-total";
     totalEl.id = `cashTotal-${denom}`;
-    totalEl.textContent = formatCurrency(0);
-    gridContainer.appendChild(denomEl);
-    gridContainer.appendChild(inputEl);
-    gridContainer.appendChild(totalEl);
+    totalEl.textContent = '0.00';
+    const stepper = document.createElement("div");
+    stepper.className = "cash-stepper";
+    for (const [delta, label, symbol] of [[-1, 'Decrease', '−'], [1, 'Increase', '+']]) {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "cash-stepper-button";
+      button.setAttribute("aria-label", `${label} Rs. ${denom} count`);
+      const icon=document.createElement('i'); icon.className = delta < 0 ? 'fas fa-minus' : 'fas fa-plus'; icon.setAttribute('aria-hidden','true'); button.appendChild(icon);
+      button.onclick = () => { inputEl.value = Math.max(0, (parseInt(inputEl.value, 10) || 0) + delta); calculateCashTotal(); };
+      if (delta < 0) stepper.appendChild(button);
+      else { stepper.appendChild(inputEl); stepper.appendChild(button); }
+    }
+    const row=document.createElement('div'); row.className='cash-counter-row';
+    row.appendChild(denomEl); row.appendChild(stepper); row.appendChild(totalEl);
+    gridContainer.appendChild(row);
   });
   calculateCashTotal();
-  openModalHelper("cashCounterModal");
-  $("#cashCounterComparison").innerHTML = "";
 }
 
 function calculateCashTotal() {
@@ -563,9 +612,7 @@ function calculateCashTotal() {
     grandTotal += total;
     const totalEl = $(`#cashTotal-${denomination}`);
     if (totalEl)
-      totalEl.innerHTML = `<span class="tabular-nums">${formatCurrency(
-        total
-      )}</span>`;
+      totalEl.textContent = total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   });
   $(
     "#cashCounterTotal"
@@ -593,6 +640,11 @@ function calculateCashTotal() {
         cashAccount.balance
       )}</span>)</p>`;
   }
+}
+
+function resetCashCounts() {
+  $$('#cashCounterForm input[data-denom]').forEach(input => { input.value = ''; input._scrollAccumulator = 0; });
+  calculateCashTotal();
 }
 
 // --- MODAL & BACK GESTURE LOGIC ---
@@ -623,9 +675,134 @@ if ('scrollRestoration' in history) {
   history.scrollRestoration = 'manual';
 }
 
+const modalFocusOrigins = new Map();
+const mobileModalFocus = () => window.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+function visibleModalControls(modal) {
+  return [...modal.querySelectorAll('button, a[href], input:not([type="hidden"]), select, textarea, summary, [tabindex]')].filter(el => {
+    if(el.disabled || el.tabIndex<0 || !el.getClientRects?.().length || el.closest('[hidden], .hidden, [inert]'))return false;
+    for(let parent=el.parentElement;parent&&parent!==modal;parent=parent.parentElement)if(parent.style.maxHeight==='0px')return false;
+    return true;
+  });
+}
+function topVisibleModal() {
+  return [...document.querySelectorAll('.modal')].filter(el => el.style.display === 'block').sort((a,b) => (Number(getComputedStyle(a).zIndex)||0)-(Number(getComputedStyle(b).zIndex)||0)).pop();
+}
+function sourceFloatingLayer(target) {
+  const owner=target?.closest?.('.modal, #pinLockOverlay, #storageScreen');
+  if (!target?.isConnected || !target.getClientRects().length || target.closest('[inert]') ||
+      (isAppLocked() && owner?.id!=='pinLockOverlay' && owner?.id!=='securityQuestionModal')) return null;
+  const top=topVisibleModal();
+  if (top && top!==owner) return null;
+  return owner ? (Number(getComputedStyle(owner).zIndex)||50)+1 : 45;
+}
+function dismissSourceFloatingUI() {
+  mathToolbar.classList.remove('visible');activeCalcInput=null;
+  const tooltip=document.getElementById('global-tooltip');
+  tooltip?.classList.remove('visible');tooltip?.classList.add('hidden');
+}
+function focusModalStart(modal) {
+  if (modal.style.display !== 'block') return;
+  const container = modal.querySelector('.modal-content') || modal;
+  container.setAttribute('tabindex', '-1');
+  const field = !mobileModalFocus() && !['settingsModal','initialSetupModal','donateModal','shortcutsHelpModal','monthlyViewModal'].includes(modal.id) && visibleModalControls(modal).find(el => el.matches('input:not([type="checkbox"]):not([type="radio"]):not([readonly]), select, textarea'));
+  (field || container).focus({preventScroll:true});
+}
+function restoreModalFocus(id) {
+  const origin = modalFocusOrigins.get(id);
+  modalFocusOrigins.delete(id);
+  const top = topVisibleModal();
+  if (origin?.isConnected && origin.getClientRects?.().length && (!top || top.contains(origin))) {
+    // Returning to a text field must not reopen the phone keyboard.
+    if (!mobileModalFocus() || !origin.matches('input,select,textarea')) origin.focus({preventScroll:true});
+    else if (top) focusModalStart(top);
+  } else if (top) focusModalStart(top);
+}
+document.addEventListener('keydown', event => {
+  let modal = topVisibleModal();
+  const menu=document.getElementById('mobileDropdown');
+  if(!modal&&menu?.classList.contains('dropdown-open')) {
+    modal=menu;
+    if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();document.getElementById('mobileMenuBtn').click();return;}
+  }
+  if (isAppLocked()) {
+    const recovery=document.getElementById('securityQuestionModal');
+    modal=recovery?.style.display==='block'?recovery:document.getElementById('pinLockOverlay');
+    if(modal===recovery&&event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();closeModal(recovery.id);return;}
+  }
+  if(['Enter',' '].includes(event.key)&&event.target.matches?.('[role="button"]:not(button):not(input)')&&(!isAppLocked()||modal?.contains(event.target))){event.preventDefault();event.target.click();return;}
+  if (!modal) return;
+  const input = event.target.closest?.('.settings-category-row.is-editing input');
+  if (input && ['Enter','Escape'].includes(event.key)) {
+    event.preventDefault();event.stopImmediatePropagation();
+    const row=input.closest('li');
+    if(event.key==='Enter')renameCategory(row.querySelector('[aria-label="Save Rename"]'));
+    else SettingsWorkspace.editCategory(row.querySelector('[aria-label="Cancel Rename"]'),false);
+    return;
+  }
+  if (event.key==='Tab') {
+    if (modal.id === 'settingsModal') {
+      const panel = document.querySelector('#settingsTabContent > .settings-tab-panel:not(.hidden)');
+      const firstControl = panel && visibleModalControls(panel)[0];
+      const navigation = event.target.closest?.('#settingsTabsContainer button');
+      if (!event.shiftKey && navigation && firstControl) {
+        event.preventDefault(); firstControl.focus(); return;
+      }
+      if (event.shiftKey && event.target === firstControl) {
+        const current = document.querySelector('#settingsTabsContainer button[aria-current="page"]');
+        if (current?.getClientRects().length) { event.preventDefault(); current.focus(); return; }
+      }
+    }
+    const controls=visibleModalControls(modal),first=controls[0],last=controls.at(-1);
+    if(!first){event.preventDefault();focusModalStart(modal);return;}
+    if(event.shiftKey && (!modal.contains(document.activeElement)||document.activeElement===first||!controls.includes(document.activeElement))){event.preventDefault();last.focus();}
+    else if(!event.shiftKey && (!controls.includes(document.activeElement)||document.activeElement===last)){event.preventDefault();first.focus();}
+  }
+},true);
+
+// Keep dynamically rebuilt lists operable without duplicating their click handlers.
+function enhanceKeyboardControls() {
+  const action = (el, label) => {
+    if(!el)return;
+    el.setAttribute('role','button');el.tabIndex=0;
+    if(label)el.setAttribute('aria-label',label);
+  };
+  document.querySelectorAll('#recentTransactionsList .transaction-list-item-layout > div:first-child, .monthly-view-transaction-item:not(.cc-history-row) > div:first-child').forEach(el=>action(el,`View transaction: ${el.textContent.trim()}`));
+  document.querySelectorAll('.monthly-view-day-header, #debtsViewModal .cursor-pointer, #receivablesViewModal .cursor-pointer').forEach(el=>{
+    if(el.tagName==='BUTTON'||el.querySelector('button'))return;
+    action(el);
+    const panel=el.nextElementSibling;
+    if(panel)el.setAttribute('aria-expanded',String(panel.style.maxHeight!=='0px'));
+  });
+  document.querySelectorAll('.cc-payment-history-main > .flex-grow').forEach(el=>action(el,`View purchase actions: ${el.textContent.trim()}`));
+  document.querySelectorAll('.budget-progress-container').forEach(el=>action(el,'View budget transactions'));
+  document.querySelectorAll('#mobileDropdown span[onclick]').forEach(el=>action(el));
+  document.querySelectorAll('.day-transactions-container, .cc-history-row > .overflow-hidden').forEach(panel=>{panel.inert=panel.style.maxHeight==='0px';});
+  document.querySelectorAll('.calc-toggle-btn').forEach(el=>{el.tabIndex=-1;if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label','Toggle Calculator');});
+  document.querySelectorAll('button[data-tooltip]').forEach(el=>{if(!el.textContent.trim()||!/[a-z0-9]/i.test(el.textContent)){if(!el.hasAttribute('aria-label'))el.setAttribute('aria-label',el.dataset.tooltip);}});
+}
+enhanceKeyboardControls();
+document.addEventListener('click',()=>requestAnimationFrame(enhanceKeyboardControls));
+let keyboardRefreshPending=false;
+if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
+  const controls = 'button, input, select, textarea, [role="button"], .cursor-pointer, .monthly-view-day-header, .budget-progress-container, .cc-payment-history-main, .transaction-list-item-layout, .monthly-view-transaction-item';
+  if (!records.some(record => [...record.addedNodes].some(node => node.nodeType === 1 &&
+      (node.matches(controls) || node.querySelector(controls))))) return;
+  if(keyboardRefreshPending)return;keyboardRefreshPending=true;
+  requestAnimationFrame(()=>{keyboardRefreshPending=false;enhanceKeyboardControls();});
+}).observe(document.body,{childList:true,subtree:true});
+
 function openModalHelper(modalId) {
   const modal = $(`#${modalId}`);
   if (modal && modal.style.display !== "block") {
+    dismissSourceFloatingUI();
+    modalFocusOrigins.set(modalId, document.activeElement);
+    const heading = modal.querySelector('h1, h2, h3');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    if (heading && !modal.getAttribute('aria-label') && !modal.getAttribute('aria-labelledby')) {
+      if (!heading.id) heading.id = `${modalId}Heading`;
+      modal.setAttribute('aria-labelledby', heading.id);
+    }
     modal.style.display = "block";
     updateBodyScrollState();
     
@@ -635,24 +812,20 @@ function openModalHelper(modalId) {
     }
     currentOpenModals.push(modalId);
     
-    history.pushState({ modalOpen: true, modalId, openModals: currentOpenModals }, null, "");
+    history.pushState({ ...history.state, modalOpen: true, modalId, openModals: currentOpenModals,
+      ...(modalId === "settingsModal" ? { settingsSection: null, settingsDepth: 0 } : {}) }, null, "");
 
     setTimeout(() => {
-      if (!["settingsModal", "initialSetupModal", "donateModal", "shortcutsHelpModal", "monthlyViewModal"].includes(modalId)) {
-        const firstInput = modal.querySelector('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([readonly]), select, textarea');
-        if (firstInput) {
-          firstInput.focus();
-        }
-      }
+      if (topVisibleModal() === modal && !modal.contains(document.activeElement)) focusModalStart(modal);
     }, 50);
   }
 }
 
 window.addEventListener("popstate", (event) => {
   const modalsToClose = [
-    "confirmationModal", "formModal", "transactionDetailModal", "ccTransactionDetailModal", "ccHistoryModal", "cashCounterModal",
+    "milestonesModal", "confirmationModal", "formModal", "subscriptionReminderModal", "upcomingPaymentsModal", "subscriptionsModal", "transactionDetailModal", "ccTransactionDetailModal", "ccHistoryModal", "cashCounterModal",
     "debtsViewModal", "receivablesViewModal", "transferMoneyModal",
-    "monthlyViewModal", "settingsModal", "donateModal", "shortcutsHelpModal", "securityQuestionModal", "initialSetupModal", "editBudgetModal"
+    "monthlyViewModal", "settingsModal", "settingsAddCategoryModal", "settingsAddBudgetModal", "cloudSyncModal", "donateModal", "shortcutsHelpModal", "securityQuestionModal", "initialSetupModal", "kaasiTutorialModal", "editBudgetModal"
   ];
   
   const targetOpenModals = (event.state && event.state.openModals) ? event.state.openModals : [];
@@ -661,6 +834,7 @@ window.addEventListener("popstate", (event) => {
   }
 
   modalsToClose.forEach(id => {
+    if (id === 'initialSetupModal' && !state?.settings?.initialSetupDone) return;
     const m = $(`#${id}`);
     if (m) {
       if (targetOpenModals.includes(id)) {
@@ -670,17 +844,45 @@ window.addEventListener("popstate", (event) => {
         if (id === "formModal") {
           $("#dynamicForm").innerHTML = "";
           $("#dynamicForm").onsubmit = null;
+          $("#dynamicForm").oninput = null;
         }
-        if (id === "settingsModal") cancelDeleteAllData();
+        if (id === "settingsModal") { cancelDeleteAllData(); finishSettingsCloudSyncBatch(); }
         if (id === "ccHistoryModal") document.body.renderCcHistoryList = null;
+        restoreModalFocus(id);
       }
     }
   });
+  if (typeof SettingsWorkspace !== "undefined") SettingsWorkspace.restore(event.state);
   updateBodyScrollState();
 });
 
 function closeModal(modalId) {
   const modal = $(`#${modalId}`);
+  const wasOpen = modal?.style.display === "block";
+  if (modalId === "settingsModal" && typeof SettingsWorkspace !== "undefined") {
+    SettingsWorkspace.stopMotion?.();
+    SettingsWorkspace.releaseSubscriptions();
+    const depth = history.state?.settingsDepth || 0;
+    const stack = history.state?.openModals || [];
+    const index = stack.indexOf("settingsModal");
+    if (wasOpen && index >= 0) {
+      // Imports/reset can close Settings while a confirmation is above it.
+      // Remove that whole branch, then let callers open the next screen safely.
+      stack.slice(index).forEach(id => { const item = $(`#${id}`); if (item) item.style.display = "none"; });
+      finishSettingsCloudSyncBatch();
+      if (stack.includes("formModal")) {
+        $("#dynamicForm").innerHTML = "";
+        $("#dynamicForm").onsubmit = null;
+        $("#dynamicForm").oninput = null;
+      }
+      cancelDeleteAllData();
+      updateBodyScrollState();
+      return new Promise(resolve => {
+        window.addEventListener("popstate", () => { restoreModalFocus('settingsModal'); resolve(); }, { once: true });
+        history.go(-(depth + stack.length - index));
+      });
+    }
+  }
   if (modal) {
     modal.style.display = "none";
     updateBodyScrollState();
@@ -688,16 +890,18 @@ function closeModal(modalId) {
   if (modalId === "formModal") {
     $("#dynamicForm").innerHTML = "";
     $("#dynamicForm").onsubmit = null;
+    $("#dynamicForm").oninput = null;
   }
-  if (modalId === "settingsModal") cancelDeleteAllData();
+  if (modalId === "settingsModal") { cancelDeleteAllData(); if (wasOpen) finishSettingsCloudSyncBatch(); }
   if (modalId === "ccHistoryModal") {
     document.body.renderCcHistoryList = null; // Cleanup
   }
   
   // Clean up history state if closed manually
-  if (history.state && history.state.modalOpen) {
+  if (wasOpen && history.state && history.state.modalOpen) {
     history.back();
   }
+  if (wasOpen) restoreModalFocus(modalId);
 }
 
 function openFormModal(title, formHtml, submitHandler) {
@@ -709,18 +913,27 @@ function openFormModal(title, formHtml, submitHandler) {
   }
 
   const form = $("#dynamicForm");
+  form.oninput = null;
   form.innerHTML = formHtml;
   form.onsubmit = submitHandler;
   openModalHelper("formModal");
-  const firstInput = form.querySelector(
-    'input:not([type="hidden"]), select, textarea'
-  );
-  if (firstInput) firstInput.focus();
+  focusModalStart(document.getElementById('formModal'));
+}
+
+let modalPointerDownTarget = null;
+let modalPointerUpTarget = null;
+window.addEventListener("pointerdown", event => { modalPointerDownTarget = event.target; modalPointerUpTarget = null; }, true);
+window.addEventListener("pointerup", event => { modalPointerUpTarget = event.target; }, true);
+window.addEventListener("pointercancel", () => { modalPointerDownTarget = null; modalPointerUpTarget = null; }, true);
+
+function isModalBackdropClick(event, modal) {
+  return event.target === modal && (event.detail === 0 ||
+    (modalPointerDownTarget === modal && modalPointerUpTarget === modal));
 }
 
 window.addEventListener("click", (event) => {
   $$(".modal").forEach((modal) => {
-    if (event.target === modal && modal.id !== "initialSetupModal" && modal.id !== "cloudSessionExpiredModal") {
+    if (isModalBackdropClick(event, modal) && modal.id !== "initialSetupModal" && modal.id !== "cloudSessionExpiredModal") {
       closeModal(modal.id);
     }
   });
@@ -776,10 +989,13 @@ function showConfirmationModal(
   const newCancelBtn = cancelBtn.cloneNode(true);
   cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
 
-  newConfirmBtn.onclick = () => {
+  newConfirmBtn.onclick = async () => {
     let handled = false;
     if (typeof currentConfirmCallback === "function") {
-      handled = currentConfirmCallback();
+      newConfirmBtn.disabled = true;
+      try { handled = await currentConfirmCallback(); }
+      catch (error) { if (!error.kaasiSaveFailure) showNotification(error.message, "error"); return; }
+      finally { newConfirmBtn.disabled = false; }
     }
     if (handled !== true) {
       closeModal("confirmationModal");
@@ -808,12 +1024,17 @@ function showConfirmationModal(
 let activeSettingsTab = null;
 
 const settingsTabsConfig = [
-  { label: "Accounts", targetPanelId: "settingsAccountsPanel" },
-  { label: "Categories", targetPanelId: "settingsCategoriesPanel" },
-  { label: "Budgets", targetPanelId: "settingsBudgetsPanel" },
-  { label: "Data", targetPanelId: "settingsDataManagementPanel" },
-  { label: "Appearance", targetPanelId: "settingsAppearancePanel" },
-  { label: "Security", targetPanelId: "settingsSecurityPanel" }
+  { label: "Accounts", targetPanelId: "settingsAccountsPanel", group: "Money", icon: "wallet", hint: "Balances, transfer fees & credit card", description: "Manage your balances and payment preferences." },
+  { label: "Categories", targetPanelId: "settingsCategoriesPanel", group: "Money", icon: "tags", hint: "Organize expenses & hidden categories", description: "Manage categories and how hidden categories are used." },
+  { label: "Budgets", targetPanelId: "settingsBudgetsPanel", group: "Money", icon: "chart-pie", hint: "Monthly limits & budget sorting", description: "Set spending limits and organize your budgets." },
+  { label: "Subscriptions", targetPanelId: "settingsSubscriptionsPanel", group: "Money", icon: "calendar-check", hint: "Active subscriptions & paused renewals", description: "Manage your recurring payments and reminders." },
+  { label: "Appearance", targetPanelId: "settingsAppearancePanel", group: "App", icon: "palette", hint: "Theme, calculator & dashboard", description: "Choose your theme and what appears on the dashboard." },
+  { label: "Data & Backups", targetPanelId: "settingsDataManagementPanel", group: "App", icon: "cloud", hint: "Sync, files, storage & reminders", description: "Manage backups and saved data on this device." },
+  { label: "Security", targetPanelId: "settingsSecurityPanel", group: "App", icon: "shield-alt", hint: "PIN lock & security question", description: "Manage your app PIN and security question." },
+  { label: "About & Support", targetPanelId: "settingsAboutPanel", group: "Information", icon: "info-circle", hint: "About Kaasi & getting in touch", description: "About Kaasi and how to get in touch." },
+  { label: "Donate", targetPanelId: "settingsDonatePanel", group: "Information", icon: "heart", hint: "Support Kaasi's development", description: "Help keep Kaasi free and in active development." },
+  { label: "Milestones", targetPanelId: "settingsMilestonesPanel", group: "Extras", icon: "award", hint: "Celebrate your progress", description: "Small steps worth celebrating. Everyone's journey is different." },
+  { label: "Cash Counter", targetPanelId: "settingsCashCounterPanel", group: "Extras", icon: "money-bill-wave", hint: "Count your notes and coins", description: "Count your cash and compare it with your saved balance." }
 ];
 
 
@@ -822,23 +1043,6 @@ const settingsTabsConfig = [
 
 let monthlySearchDebounceTimer; // Timer for debouncing search input
 
-// Donate Modal logic
-document
-  .getElementById("footerDonateBtn")
-  .addEventListener("click", function () {
-    openModalHelper("donateModal");
-  });
-document
-  .getElementById("closeDonateModal")
-  .addEventListener("click", function () {
-    document.getElementById("donateModal").style.display = "none";
-  });
-window.addEventListener("click", function (event) {
-  const modal = document.getElementById("donateModal");
-  if (event.target === modal) {
-    modal.style.display = "none";
-  }
-});
 
 /* --------------------------------------------------- */
 /* --- INLINE AMOUNT CALCULATION & MATH TOOLBAR --- */
@@ -889,7 +1093,6 @@ document.addEventListener("click", (e) => {
 document.addEventListener("focusout", (e) => {
   if (e.target.classList && e.target.classList.contains("calc-amount")) {
     hideMathToolbar();
-    processCalculation(e.target);
   }
 });
 
@@ -903,9 +1106,9 @@ document.addEventListener("input", (e) => {
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && e.target.classList && e.target.classList.contains("calc-amount")) {
+  if ((e.key === "Enter" || e.key === "Tab") && e.target.classList && e.target.classList.contains("calc-amount")) {
     const calculated = processCalculation(e.target);
-    if (calculated) {
+    if (calculated && e.key === "Enter") {
       e.preventDefault(); 
     }
   }
@@ -922,6 +1125,15 @@ window.addEventListener("resize", () => {
     positionMathToolbar(activeCalcInput);
   }
 });
+
+// Mobile keyboards and pinch zoom can resize/move the visible viewport alone.
+if (window.visualViewport) {
+  const repositionCalculator = () => {
+    if (activeCalcInput && mathToolbar.classList.contains("visible")) positionMathToolbar(activeCalcInput);
+  };
+  window.visualViewport.addEventListener("resize", repositionCalculator);
+  window.visualViewport.addEventListener("scroll", repositionCalculator);
+}
 
 function handleMathToolbarInteraction(e) {
   e.preventDefault(); // Prevents input from losing focus
@@ -944,28 +1156,9 @@ mathToolbar.addEventListener("touchstart", handleMathToolbarInteraction, { passi
 
 function triggerDataImport() {
   const importInput = $("#importDataInput");
-  if (importInput) {
-    // Ensure settings modal is open and on the correct tab
-    const settingsModal = $("#settingsModal");
-    if (settingsModal && settingsModal.style.display !== "block") {
-      openSettingsModal();
-      setTimeout(() => {
-        const dataTabButton = Array.from(
-          $$("#settingsTabsContainer button")
-        ).find((btn) => btn.textContent === "Data");
-        if (dataTabButton) dataTabButton.click();
-        importInput.click();
-      }, 100);
-    } else if (settingsModal) {
-      const dataTabButton = Array.from(
-        $$("#settingsTabsContainer button")
-      ).find((btn) => btn.textContent === "Data");
-      if (dataTabButton) dataTabButton.click();
-      importInput.click();
-    } else {
-      importInput.click(); // Fallback
-    }
-  }
+  // Keep the file picker in the original user gesture; browsers may block
+  // a click delayed until after opening Settings.
+  importInput?.click();
 }
 
 // --- MOBILE DROPDOWN MENU LOGIC ---
@@ -978,9 +1171,20 @@ function setupMobileDropdown() {
   if (!mobileMenuBtn || !mobileDropdown) return;
 
   let isOpen = false;
+  mobileMenuBtn.setAttribute('aria-controls','mobileDropdown');
+  mobileMenuBtn.setAttribute('aria-expanded','false');
+  for (const id of ['dropMonthlyBtn','dropBackupBtn','dropRestoreBtn','dropSettingsBtn']) {
+    const button = document.getElementById(id), label = button?.parentElement?.querySelector('span');
+    if (label) {
+      if (!label.id) label.id = `${id}Label`;
+      button.setAttribute('aria-labelledby', label.id);
+    }
+  }
 
   const toggleDropdown = () => {
     isOpen = !isOpen;
+    mobileMenuBtn.setAttribute('aria-expanded',String(isOpen));
+    mobileMenuBtn.setAttribute('aria-label',isOpen ? 'Close menu' : 'Open menu');
     if (isOpen) {
       document.body.classList.add("overflow-hidden");
       mobileDropdown.classList.remove("opacity-0", "invisible");
@@ -989,6 +1193,7 @@ function setupMobileDropdown() {
       mobileMenuOverlay.classList.add("opacity-100", "visible", "pointer-events-auto");
       mobileMenuIcon.classList.remove("fa-bars");
       mobileMenuIcon.classList.add("fa-times");
+      mobileDropdown.querySelector('button:not([disabled])')?.focus({preventScroll:true});
     } else {
       document.body.classList.remove("overflow-hidden");
       mobileDropdown.classList.remove("opacity-100", "visible", "dropdown-open");
@@ -997,6 +1202,7 @@ function setupMobileDropdown() {
       mobileMenuOverlay.classList.add("opacity-0", "invisible");
       mobileMenuIcon.classList.remove("fa-times");
       mobileMenuIcon.classList.add("fa-bars");
+      mobileMenuBtn.focus({preventScroll:true});
     }
   };
 
@@ -1056,6 +1262,107 @@ function setupMobileDropdown() {
   }
 }
 
+
+// Add optional breaks after thousands separators without changing textContent.
+// Keep this in the DOM presentation layer: JSON, inputs and exports stay plain text.
+document.addEventListener("DOMContentLoaded", () => {
+  const pending = new Set();
+  let scheduled = false;
+  const excluded = "script, style, textarea, input, select, option, [contenteditable], .currency-wrap, [data-balance-animating]";
+  const formatText = node => {
+    if (!node.parentElement || node.parentElement.closest(excluded)) return;
+    const text = node.nodeValue;
+    const pattern = /[+-]?LKR[\s\u00a0]+-?\d{1,3}(?:,\d{3})+(?:\.\d{2})?/g;
+    const matches = Array.from(text.matchAll(pattern));
+    if (!matches.length) return;
+    const fragment = document.createDocumentFragment();
+    let position = 0;
+    matches.forEach(match => {
+      fragment.append(document.createTextNode(text.slice(position, match.index)));
+      const amount = document.createElement("span");
+      amount.className = "currency-wrap";
+      const groups = match[0].split(",");
+      groups.forEach((group, index) => {
+        const chunk = document.createElement("span");
+        chunk.className = "currency-digit-group";
+        chunk.textContent = group + (index < groups.length - 1 ? "," : "");
+        amount.append(chunk);
+        if (index < groups.length - 1) amount.append(document.createElement("wbr"));
+      });
+      fragment.append(amount);
+      position = match.index + match[0].length;
+    });
+    fragment.append(document.createTextNode(text.slice(position)));
+    node.replaceWith(fragment);
+  };
+  const observer = new MutationObserver(records => {
+    records.forEach(record => {
+      if (record.type === "characterData") pending.add(record.target);
+      else record.addedNodes.forEach(node => pending.add(node));
+    });
+    queue();
+  });
+  const options = { childList: true, subtree: true, characterData: true };
+  function queue() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      observer.disconnect();
+      pending.forEach(root => {
+        if (!root.isConnected) return;
+        if (root.nodeType === Node.TEXT_NODE) formatText(root);
+        else {
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          const texts = [];
+          while (walker.nextNode()) texts.push(walker.currentNode);
+          texts.forEach(formatText);
+        }
+      });
+      pending.clear();
+      observer.observe(document.body, options);
+    });
+  }
+  pending.add(document.body);
+  observer.observe(document.body, options);
+  queue();
+});
+
+// Fit complete monetary values after animated updates and container resizing.
+document.addEventListener("DOMContentLoaded", () => {
+  const card = document.getElementById("balanceOverviewCard");
+  if (!card) return;
+  let pending = false;
+  const fit = () => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      card.querySelectorAll("#totalBalance, #totalPotentialBalance, .balance-val, .overview-stat strong").forEach(el => {
+        if (!el.clientWidth) return;
+        el.style.removeProperty("font-size");
+        el.style.removeProperty("white-space");
+        el.style.removeProperty("overflow-wrap");
+        // Measure a single line, including the display-only comma groups.
+        // Otherwise their legal wrapping hides the overflow before fitting runs.
+        el.classList.add("fit-currency-line");
+        const base = Number.parseFloat(getComputedStyle(el).fontSize);
+        if (el.scrollWidth > el.clientWidth) {
+          el.style.fontSize = `${Math.max(12, base * el.clientWidth / el.scrollWidth * 0.97)}px`;
+          if (el.scrollWidth > el.clientWidth) {
+            el.classList.remove("fit-currency-line");
+            el.style.whiteSpace = "normal";
+            el.style.overflowWrap = "anywhere";
+          }
+        }
+      });
+    });
+  };
+  new MutationObserver(fit).observe(card, { childList: true, subtree: true, characterData: true });
+  new ResizeObserver(fit).observe(card);
+  document.fonts?.ready.then(fit);
+  fit();
+});
 
 function toggleCategoryVisibilityInModal(
   selectElement,

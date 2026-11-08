@@ -102,7 +102,7 @@ function renderRecentTransactions() {
         new Date(b.date).setHours(0, 0, 0, 0) -
           new Date(a.date).setHours(0, 0, 0, 0) || b.timestamp - a.timestamp
     )
-    .slice(0, 10);
+    .slice(0, 6);
 
   if (recent.length === 0) {
     list.innerHTML = '<div class="flex flex-col items-center justify-center py-8 text-gray-500"><i class="fas fa-receipt text-3xl mb-3 opacity-40"></i><p class="text-sm font-medium">No transactions yet</p></div>';
@@ -127,7 +127,7 @@ function renderRecentTransactions() {
       day: "2-digit",
       month: "short",
     })}`; // Date first
-    subDetailText += ` - ${accountName}`;
+    subDetailText += ` - ${escapeHTML(accountName)}`;
     if (!isIncome && t.category) {
       subDetailText += ` | ${escapeHTML(t.category)}`;
     } else if (!isIncome && !t.category) {
@@ -141,8 +141,8 @@ function renderRecentTransactions() {
       </div>
       <span class="font-semibold whitespace-nowrap ${textColorClass} tabular-nums">${isIncome ? "+" : "-"}${formatCurrency(t.amount)}</span>
       <div class="edit-btn-container flex-shrink-0 hidden md:flex">
-        <button class="text-xs accent-text hover:text-accent-hover focus:outline-none" onclick="openEditTransactionModal('${t.id}', event)" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
-        <button class="text-xs text-gray-500 hover:text-expense focus:outline-none" onclick="deleteTransaction('${t.id}',event)" data-tooltip="Delete"><i class="fas fa-times"></i></button>
+        <button class="text-xs accent-text hover:text-accent-hover focus:outline-none" data-record-action="editTransaction" data-record-id="${escapeHTML(t.id)}" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
+        <button class="text-xs text-gray-500 hover:text-expense focus:outline-none" data-record-action="deleteTransaction" data-record-id="${escapeHTML(t.id)}" data-tooltip="Delete"><i class="fas fa-times"></i></button>
       </div>`;
     
     list.appendChild(div);
@@ -176,7 +176,7 @@ function renderDebtList() {
     acc[creditorName].totalOwedTo += d.remainingAmount;
     acc[creditorName].items.push(d);
     return acc;
-  }, {});
+  }, Object.create(null));
 
   const sortedCreditors = Object.keys(totalsByCreditor).sort((a, b) =>
     a.localeCompare(b)
@@ -257,15 +257,9 @@ function renderDebtList() {
           <div class="flex justify-between items-center text-xs text-gray-500 mt-1">
             <span>Due: ${new Date(d.dueDate).toLocaleDateString()}</span>
             <div class="edit-btn-container">
-              <button class="link-style text-xs mr-2 accent-text hover:text-accent-hover" onclick="openEditDebtForm('${
-                d.id
-              }')">Edit</button>
-              <button class="link-style text-xs mr-2 text-income hover:opacity-80" onclick="openPayDebtForm('${
-                d.id
-              }')">Pay</button>
-              <button class="text-gray-500 hover:text-expense text-xs focus:outline-none" onclick="deleteDebt('${
-                d.id
-              }')" data-tooltip="Delete"><i class="fas fa-times"></i></button>
+              <button class="accent-text" aria-label="Edit debt" data-tooltip="Edit" data-record-action="editDebt" data-record-id="${escapeHTML(d.id)}"><i class="fas fa-edit" aria-hidden="true"></i></button>
+              <button class="text-expense" aria-label="Pay debt" data-tooltip="Pay" data-record-action="payDebt" data-record-id="${escapeHTML(d.id)}"><i class="fas fa-money-bill-transfer" aria-hidden="true"></i></button>
+              <button class="text-gray-500 hover:text-expense" aria-label="Delete debt" data-record-action="deleteDebt" data-record-id="${escapeHTML(d.id)}" data-tooltip="Delete"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
           </div>
         `;
@@ -345,7 +339,7 @@ function renderReceivableList() {
       acc[personName].totalOwed += r.remainingAmount;
       acc[personName].items.push(r);
       return acc;
-    }, {});
+    }, Object.create(null));
 
     const sortedPeople = Object.keys(totalsByPerson).sort((a, b) =>
       a.localeCompare(b)
@@ -383,7 +377,7 @@ function renderReceivableList() {
           const srcAcc = state.accounts.find((a) => a.id === r.sourceAccount);
           let srcTxt =
             r.type === "cash"
-              ? `(From: ${srcAcc?.name || "Unknown"})`
+              ? `(From: ${escapeHTML(srcAcc?.name || "Unknown")})`
               : "(Via CC)";
           const origAmt = r.originalAmount || r.amount || r.remainingAmount;
           const percentagePaid = origAmt > 0 ? ((origAmt - r.remainingAmount) / origAmt) * 100 : 0;
@@ -413,15 +407,9 @@ function renderReceivableList() {
           <div class="flex justify-between items-center text-xs text-gray-500 mt-1">
             <span>Given: ${new Date(r.dateGiven).toLocaleDateString()}</span>
             <div class="edit-btn-container">
-              <button class="link-style text-xs mr-2 accent-text hover:text-accent-hover" onclick="openEditReceivableForm('${
-                r.id
-              }')">Edit</button>
-              <button class="link-style text-xs mr-2 text-income hover:opacity-80" onclick="openReceivePaymentForm('${
-                r.id
-              }')">Receive</button>
-              <button class="text-gray-500 hover:text-expense text-xs focus:outline-none" onclick="deleteReceivable('${
-                r.id
-              }')" data-tooltip="Delete"><i class="fas fa-times"></i></button>
+              <button class="accent-text" aria-label="Edit receivable" data-tooltip="Edit" data-record-action="editReceivable" data-record-id="${escapeHTML(r.id)}"><i class="fas fa-edit" aria-hidden="true"></i></button>
+              <button class="text-income" aria-label="Receive payment" data-tooltip="Receive" data-record-action="receivePayment" data-record-id="${escapeHTML(r.id)}"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i></button>
+              <button class="text-gray-500 hover:text-expense" aria-label="Delete receivable" data-record-action="deleteReceivable" data-record-id="${escapeHTML(r.id)}" data-tooltip="Delete"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
           </div>
         `;
@@ -496,20 +484,18 @@ function renderInstallmentList() {
     `;
 
     const buttonsHtml = `
-        <div class="edit-btn-container flex items-center justify-end gap-x-4">
+        <div class="edit-btn-container installment-actions flex items-center justify-end gap-x-4">
             ${
               i.monthsLeft > 0
                 ? `
-                <button class="text-sm text-income hover:opacity-80 focus:outline-none transition-opacity" onclick="payInstallmentMonth('${i.id}')" data-tooltip="Pay Installment"><i class="fas fa-credit-card"></i></button>
-                <button class="text-sm text-gray-400 hover:text-gray-200 focus:outline-none transition-colors" onclick="openEditInstallmentForm('${i.id}')" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
+                <button class="text-sm text-income hover:opacity-80 focus:outline-none transition-opacity" data-record-action="payInstallment" data-record-id="${escapeHTML(i.id)}" data-tooltip="Pay Installment"><i class="fas fa-credit-card"></i></button>
+                <button class="text-sm text-gray-400 hover:text-gray-200 focus:outline-none transition-colors" data-record-action="editInstallment" data-record-id="${escapeHTML(i.id)}" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
               `
                 : `
-                <button class="text-sm text-gray-400 hover:text-gray-200 focus:outline-none transition-colors" onclick="openEditInstallmentForm('${i.id}')" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
+                <button class="text-sm text-gray-400 hover:text-gray-200 focus:outline-none transition-colors" data-record-action="editInstallment" data-record-id="${escapeHTML(i.id)}" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
               `
             }
-            <button class="text-sm text-gray-500 hover:text-expense focus:outline-none transition-colors" onclick="deleteInstallment('${
-              i.id
-            }')" data-tooltip="Delete"><i class="fas fa-times"></i></button>
+            <button class="text-sm text-gray-500 hover:text-expense focus:outline-none transition-colors" data-record-action="deleteInstallment" data-record-id="${escapeHTML(i.id)}" data-tooltip="Delete"><i class="fas fa-times"></i></button>
         </div>
     `;
 
@@ -554,12 +540,12 @@ let monthlyOverviewChartInstance = null;
 
 
 
-function handleTransactionSubmit(event) {
+async function handleTransactionSubmit(event) {
   event.preventDefault();
   const form = event.target,
     formData = new FormData(form);
   const type = formData.get("transactionType");
-  const amount = parseFloat(String(formData.get("amount")).replace(/,/g, ''));
+  const amount = parseAmountValue(formData.get("amount"));
   const description = formData.get("description").trim();
   const date = formData.get("date");
 
@@ -567,7 +553,7 @@ function handleTransactionSubmit(event) {
     const fromAccountId = formData.get("transferFrom");
     const toAccountId = formData.get("transferTo");
     const feeRaw = formData.get("transferFee");
-    const fee = feeRaw ? parseFloat(String(feeRaw).replace(/,/g, '')) : 0;
+    const fee = feeRaw ? parseAmountValue(feeRaw) : 0;
     const feeCategory = formData.get("category");
 
     if (isNaN(amount) || amount <= 0) {
@@ -619,7 +605,7 @@ function handleTransactionSubmit(event) {
         type: "expense",
         amount: roundToTwoDecimals(fee),
         account: fromAccountId,
-        category: feeCategory || "Bank Charges",
+        category: feeCategory || getTransferFeeCategory(),
         description: description || "Bank Transfer Fee",
         date: date,
         timestamp: timestamp
@@ -627,10 +613,11 @@ function handleTransactionSubmit(event) {
       state.transactions.push(feeTransaction);
     }
 
+    await saveData();
     showNotification("Transfer successful.", "success");
+    if (form.contains?.(document.activeElement)) document.activeElement.blur();
     if (typeof trackEvent === "function") trackEvent("add_transfer", "Engagement");
 
-    saveData();
     renderDashboard();
     populateDropdowns();
     form.reset();
@@ -639,6 +626,8 @@ function handleTransactionSubmit(event) {
       ts.value = "expense";
       ts.dispatchEvent(new Event("change"));
     }
+    const categorySelect = $("#category");
+    if (categorySelect) categorySelect.value = "";
     return;
   }
 
@@ -699,13 +688,14 @@ function handleTransactionSubmit(event) {
   }
   if (isNaN(account.balance)) account.balance = 0;
 
+  await saveData();
   showNotification(
     `${type.charAt(0).toUpperCase() + type.slice(1)} added.`,
     "success"
   );
   if (typeof trackEvent === "function") trackEvent(`add_${type}`, "Engagement");
+  if (form.contains?.(document.activeElement)) document.activeElement.blur();
 
-  saveData();
   renderDashboard();
   populateDropdowns();
   form.reset();
@@ -770,10 +760,10 @@ function openTransactionDetailModal(transactionId, skipHistory = false) {
     </div>
     
     <div class="flex gap-3 mt-4">
-      <button class="btn btn-secondary flex-1" onclick="openEditTransactionModal('${transaction.id}', null)">
+      <button class="btn btn-secondary flex-1" data-record-action="editTransaction" data-record-id="${escapeHTML(transaction.id)}">
         <i class="fas fa-edit mr-2"></i> Edit
       </button>
-      <button class="btn btn-danger flex-1" onclick="deleteTransaction('${transaction.id}', null)">
+      <button class="btn btn-danger flex-1" data-record-action="deleteTransaction" data-record-id="${escapeHTML(transaction.id)}">
         <i class="fas fa-trash mr-2"></i> Delete
       </button>
     </div>
@@ -789,6 +779,17 @@ function openTransactionDetailModal(transactionId, skipHistory = false) {
       openModalHelper("transactionDetailModal");
     }
   }
+}
+
+function getCcPurchaseCategory(item) {
+  return typeof item.category === "string" && item.category.toLowerCase() !== "income" && state.categories.includes(item.category) ? item.category : "";
+}
+
+function ccPurchaseCategoryOptions(selected = "", optional = true) {
+  return `<option value="">${optional ? "Uncategorized" : "Select Category"}</option>` + state.categories
+    .filter(category => category.toLowerCase() !== "income")
+    .slice().sort(compareCategoryNames)
+    .map(category => `<option value="${escapeHTML(category)}"${category === selected ? " selected" : ""}>${escapeHTML(category)}</option>`).join("");
 }
 
 function openCcTransactionDetailModal(transactionId, skipHistory = false) {
@@ -809,7 +810,7 @@ function openCcTransactionDetailModal(transactionId, skipHistory = false) {
 
   let payButtonHtml = "";
   if (isSelectable) {
-    payButtonHtml = `<button class="btn btn-primary flex-1 py-2.5" onclick="openPayCcItemForm('${transaction.id}')"><i class="fas fa-credit-card mr-1"></i> Pay</button>`;
+    payButtonHtml = `<button class="btn btn-primary flex-1 py-2.5" data-record-action="payCc" data-record-id="${escapeHTML(transaction.id)}"><i class="fas fa-credit-card mr-1"></i> Pay</button>`;
   }
 
   const html = `
@@ -825,6 +826,10 @@ function openCcTransactionDetailModal(transactionId, skipHistory = false) {
         <span class="font-medium">${new Date(transaction.date).toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</span>
       </div>
       <div class="flex justify-between items-center py-2 border-b border-gray-700/50">
+        <span class="text-gray-400">Category</span>
+        <span class="cc-detail-category">${escapeHTML(getCcPurchaseCategory(transaction) || "Uncategorized")}</span>
+      </div>
+      <div class="flex justify-between items-center py-2 border-b border-gray-700/50">
         <span class="text-gray-400">Paid So Far</span>
         <span class="font-medium text-gray-300">${formatCurrency(transaction.paidAmount || 0)}</span>
       </div>
@@ -837,10 +842,10 @@ function openCcTransactionDetailModal(transactionId, skipHistory = false) {
     <div class="flex flex-col sm:flex-row gap-3 mt-4">
       ${payButtonHtml}
       <div class="flex gap-3 flex-1 w-full">
-        <button class="btn btn-secondary flex-1 py-2.5" onclick="openEditCcTransactionModal('${transaction.id}')">
+        <button class="btn btn-secondary flex-1 py-2.5" data-record-action="editCc" data-record-id="${escapeHTML(transaction.id)}">
           <i class="fas fa-edit mr-2"></i> Edit
         </button>
-        <button class="btn btn-secondary flex-1 py-2.5 hover:!text-expense hover:!border-expense" onclick="deleteCcTransaction('${transaction.id}')">
+        <button class="btn btn-secondary flex-1 py-2.5 hover:!text-expense hover:!border-expense" data-record-action="deleteCc" data-record-id="${escapeHTML(transaction.id)}">
           <i class="fas fa-trash mr-2"></i> Delete
         </button>
       </div>
@@ -870,25 +875,25 @@ function openEditTransactionModal(transactionId, event) {
   const accountOptions = state.accounts
     .map(
       (acc) =>
-        `<option value="${acc.id}" ${
+        `<option value="${escapeHTML(acc.id)}" ${
           transaction.account === acc.id ? "selected" : ""
         }>${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})</option>`
     )
     .join("");
 
   const categoryOptions = state.categories
-    .sort((a, b) => a.localeCompare(b))
+    .slice().sort(compareCategoryNames)
     .map(
       (cat) =>
-        `<option value="${cat}" ${
+        `<option value="${escapeHTML(cat)}" ${
           transaction.category === cat ? "selected" : ""
-        }>${cat}</option>`
+        }>${escapeHTML(cat)}</option>`
     )
     .join("");
 
   const formHtml = `
             <input type="hidden" name="editTransactionId" value="${
-              transaction.id
+              escapeHTML(transaction.id)
             }">
             <div>
                 <label for="modalTransactionType" class="block text-sm font-medium mb-1">Type</label>
@@ -928,7 +933,7 @@ function openEditTransactionModal(transactionId, event) {
             <div>
                 <label for="modalDate" class="block text-sm font-medium mb-1">Date</label>
                 <input type="date" id="modalDate" name="date" value="${
-                  transaction.date
+                  escapeHTML(transaction.date)
                 }" required>
             </div>
             <button type="submit" class="btn btn-primary w-full"><i class="fas fa-save"></i> Update Transaction</button>
@@ -945,7 +950,7 @@ function openEditTransactionModal(transactionId, event) {
   }
 }
 
-function handleEditTransactionModalSubmit(event) {
+async function handleEditTransactionModalSubmit(event) {
   event.preventDefault();
   const form = event.target;
   const formData = new FormData(form);
@@ -960,7 +965,7 @@ function handleEditTransactionModalSubmit(event) {
   const originalDate = transaction.date;
 
   const newType = formData.get("transactionType");
-  const newAmount = parseFloat(String(formData.get("amount")).replace(/,/g, '')); // Parsed from form
+  const newAmount = parseAmountValue(formData.get("amount"));
   const newAccountId = formData.get("account");
   const newCategory = newType === "expense" ? formData.get("category") : null;
   const newDescription = formData.get("description").trim();
@@ -1014,7 +1019,7 @@ function handleEditTransactionModalSubmit(event) {
   transaction.category = newCategory;
   transaction.description = newDescription;
   transaction.date = newDate;
-  // transaction.timestamp = Date.now(); // Timestamp is NOT updated to preserve original order
+  // Preserve the original timestamp so editing does not reorder the transaction.
 
   // Apply new transaction's effect on (potentially new) account balance
   const newAccount = state.accounts.find((acc) => acc.id === newAccountId);
@@ -1047,7 +1052,7 @@ function handleEditTransactionModalSubmit(event) {
     );
   }
 
-  saveData();
+  await saveData(state, { milestoneEvent: 'edit_transaction' });
   renderDashboard();
   populateDropdowns();
   closeModal("formModal");
@@ -1079,7 +1084,7 @@ function deleteTransaction(id, event) {
     }"</strong> (${formatCurrency(transaction.amount)})?`,
     "Delete",
     "Cancel",
-    () => {
+    async () => {
       // onConfirm
       if (account) {
         if (transaction.type === "income") {
@@ -1095,7 +1100,7 @@ function deleteTransaction(id, event) {
       }
       const deletedDate = transaction.date;
       state.transactions.splice(transactionIndex, 1);
-      saveData();
+      await saveData();
       renderDashboard();
       populateDropdowns();
       showNotification("Transaction deleted.", "success");
@@ -1118,7 +1123,7 @@ function deleteTransaction(id, event) {
 
 function refreshMonthlyViewIfRelevant(dateString) {
   const monthlyViewModal = $("#monthlyViewModal");
-  const activeTab = $("#monthTabs .tab-button.active");
+  const activeTab = $("#monthTabs .tab-button[data-logically-active='true']") || $("#monthTabs .tab-button.active");
 
   if (monthlyViewModal.style.display === "block" && activeTab) {
     const selectedMonth = parseInt(activeTab.dataset.month);
@@ -1126,11 +1131,7 @@ function refreshMonthlyViewIfRelevant(dateString) {
     const transactionDate = new Date(dateString + "T00:00:00");
 
     // Check if the modified transaction's date falls within the currently viewed month
-    if (
-      !isNaN(transactionDate.getTime()) &&
-      transactionDate.getFullYear() === selectedYear &&
-      transactionDate.getMonth() === selectedMonth
-    ) {
+    if (!isNaN(transactionDate.getTime())) {
 
       const scrollPos = monthlyViewModal.scrollTop;
       const innerListContainer = $("#monthlyTransactionsListContainer");
@@ -1171,6 +1172,7 @@ function refreshMonthlyViewIfRelevant(dateString) {
 
       const monthlySearchInput = $("#monthlySearchInput");
       const currentSearchTerm = monthlySearchInput ? monthlySearchInput.value.trim() : "";
+      renderMonthlyDetails(selectedMonth, selectedYear, openDayKeys, true, currentSearchTerm, true);
       // Since accordion expansion is now fully synchronous via maxHeight: "none",
       // the DOM has its full height immediately. We can restore scroll synchronously!
       monthlyViewModal.scrollTop = scrollPos;
@@ -1206,7 +1208,7 @@ function setupMonthlyView() {
 
   populateYearSelector(state.transactions, yearSelector, currentYear, currentYear);
 
-  yearSelector.addEventListener("change", () => {
+  yearSelector.onchange = () => {
     const monthlySearchInput = $("#monthlySearchInput");
     const clearMonthlySearchBtn = $("#clearMonthlySearchBtn");
     if (monthlySearchInput) {
@@ -1223,7 +1225,7 @@ function setupMonthlyView() {
       monthlyPieChartInstance.destroy();
       monthlyPieChartInstance = null;
     }
-  });
+  };
   const initialYear = yearSelector.value
     ? parseInt(yearSelector.value)
     : currentYear;
@@ -1282,6 +1284,8 @@ function renderMonthTabs(year) {
         }
       }
       renderMonthlyDetails(index, year, new Set(), false, "", false);
+      const today = new Date();
+      if ((year < today.getFullYear() || (year === today.getFullYear() && index < today.getMonth())) && $("#monthlyViewModal")?.style.display === "block" && typeof Milestones !== 'undefined') Milestones.track('previous_month');
     };
     monthTabsContainer.appendChild(button);
   });
@@ -1446,7 +1450,7 @@ function renderMonthlyDetails(
   // --- Summary calculations are now based on the FILTERED transaction pool ---
   let totalIncome = 0;
   let totalExpense = 0;
-  const categoryTotals = {};
+  const categoryTotals = Object.create(null);
   if (state.categories && Array.isArray(state.categories)) {
     state.categories.forEach((cat) => (categoryTotals[cat] = 0));
   }
@@ -1537,6 +1541,7 @@ function renderMonthlyDetails(
   exportButton.id = "exportPdfBtn";
   exportButton.className = "btn btn-secondary btn-sm";
   exportButton.dataset.tooltip = "Export as PDF";
+  exportButton.setAttribute('aria-label', 'Export as PDF');
   exportButton.innerHTML = `<i class="fas fa-file-pdf"></i> <span class="hidden md:inline">Export</span>`;
   exportButton.onclick = generateMonthlyPdfReport; // Attach event listener here
 
@@ -1649,7 +1654,7 @@ function renderMonthlyDetails(
           const isIncome = t.type === "income";
           const textColorClass = isIncome ? "text-income" : "text-expense";
 
-          let subDetailText = accountName;
+          let subDetailText = escapeHTML(accountName);
           if (!isIncome && t.category) {
             subDetailText += ` | ${escapeHTML(t.category)}`;
           } else if (!isIncome && !t.category) {
@@ -1670,12 +1675,8 @@ function renderMonthlyDetails(
               isIncome ? "+" : "-"
             }${formatCurrency(t.amount)}</span>
                 <div class="edit-btn-container ml-3 hidden md:flex">
-                  <button class="text-xs accent-text hover:text-accent-hover focus:outline-none" onclick="openEditTransactionModal('${
-                    t.id
-                  }', event)" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
-                  <button class="text-xs text-gray-500 hover:text-expense focus:outline-none ml-2" onclick="deleteTransaction('${
-                    t.id
-                  }', event)" data-tooltip="Delete"><i class="fas fa-times"></i></button>
+                  <button class="text-xs accent-text hover:text-accent-hover focus:outline-none" data-record-action="editTransaction" data-record-id="${escapeHTML(t.id)}" data-tooltip="Edit"><i class="fas fa-edit"></i></button>
+                  <button class="text-xs text-gray-500 hover:text-expense focus:outline-none ml-2" data-record-action="deleteTransaction" data-record-id="${escapeHTML(t.id)}" data-tooltip="Delete"><i class="fas fa-times"></i></button>
                 </div>
               </div>`;
           dayTransactionsContainer.appendChild(itemDiv);
@@ -1732,6 +1733,10 @@ function renderMonthlyDetails(
 
   const categorySection = document.createElement("div");
   categorySection.className = "md:col-span-2 space-y-4";
+  if (transactionsToDisplay.length === 0 && !Object.values(categoryTotals).some(amount => amount > 0)) {
+    categorySection.hidden = true;
+    contentGrid.classList.add('monthly-empty-grid');
+  }
   const summaryCard = document.createElement("div");
   summaryCard.className = "p-4 rounded-lg";
   summaryCard.style.backgroundColor = "var(--bg-tertiary)";
@@ -1782,6 +1787,8 @@ function renderMonthlyDetails(
       canvasContainer.className = "absolute inset-0";
       const canvas = document.createElement("canvas");
       canvas.id = "monthlyDetailPieChartCanvas";
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', 'Category distribution. Exact amounts are listed in Category Summary.');
       canvasContainer.appendChild(canvas);
       
       // Center Info Overlay
@@ -1898,6 +1905,15 @@ function renderCreditCardSection() {
   }
 }
 
+function updateCcSelectionControl(button, selecting) {
+  const label = selecting ? "Cancel Selection" : "Select Multiple";
+  button.innerHTML = `<i class="fas ${selecting ? "fa-times" : "fa-tasks"}" aria-hidden="true"></i><span>${selecting ? "Cancel" : "Select"}</span>`;
+  button.setAttribute("aria-label", label);
+  button.setAttribute("title", label);
+  button.setAttribute("data-tooltip", label);
+  button.setAttribute("aria-pressed", String(selecting));
+}
+
 function openCcHistoryModal() {
   const modal = $("#ccHistoryModal");
   if (!modal) return;
@@ -1911,6 +1927,7 @@ function openCcHistoryModal() {
 
   // --- Reset state on open ---
   ccHistoryFilter = "unpaid"; // Default filter
+  let selectionMode = false;
   if (searchInput) searchInput.value = "";
   if (clearSearchBtn) clearSearchBtn.classList.add("hidden");
 
@@ -1935,7 +1952,7 @@ function openCcHistoryModal() {
       let hasData = (state.creditCard.transactions || []).some(t => {
         const d = new Date(t.date);
         if (d.getFullYear() !== ccSelectedYear || d.getMonth() !== index) return false;
-        if (ccHistoryFilter === "paid" && !t.paidOff && (!t.paidAmount || t.paidAmount <= 0)) return false;
+        if (ccHistoryFilter === "paid" && !t.paidOff) return false;
         // if unpaid, it's bypassed entirely anyway, but just in case
         if (ccHistoryFilter === "unpaid" && t.paidOff) return false;
         return true;
@@ -1972,6 +1989,10 @@ function openCcHistoryModal() {
   const renderFilteredCcList = () => {
     ccSelectedYear = parseInt(yearSelector.value);
     const navRow = $("#ccHistoryNavigationRow");
+    if (ccHistoryFilter === "paid") selectionMode = false;
+    const selectionButton = document.getElementById("ccSelectMultipleBtn");
+    selectionButton.hidden = ccHistoryFilter === "paid";
+    updateCcSelectionControl(selectionButton, selectionMode);
     
     if (ccHistoryFilter === "unpaid") {
       if (navRow) navRow.style.display = "none";
@@ -1989,7 +2010,7 @@ function openCcHistoryModal() {
         
         // Status checks
         if (ccHistoryFilter === "unpaid" && t.paidOff) return false;
-        if (ccHistoryFilter === "paid" && !t.paidOff && (!t.paidAmount || t.paidAmount <= 0)) return false;
+        if (ccHistoryFilter === "paid" && !t.paidOff) return false;
 
         // If not unpaid, strictly filter by year and month
         if (ccHistoryFilter !== "unpaid") {
@@ -2113,21 +2134,29 @@ function openCcHistoryModal() {
         }
 
         const isSelectable = !t.paidOff && remainingOnItem > 0.005;
+        if (selectionMode && isSelectable) {
+          itemDiv.style.cursor = "pointer";
+          itemDiv.onclick = () => window.toggleCcItemSelection(t.id);
+        }
         let checkboxHtml = "";
-        if (isSelectable) {
+        if (isSelectable && selectionMode) {
           checkboxHtml = `
-            <div class="flex-shrink-0 mr-3 flex items-center h-full" onclick="event.stopPropagation(); toggleCcItemSelection('${t.id}')">
-              <div id="cc-checkbox-${t.id}" class="w-5 h-5 rounded-full border border-gray-500 flex items-center justify-center transition-colors cursor-pointer hover:border-accent-500">
+            <button type="button" class="cc-select-control" aria-label="Select ${escapeHTML(t.description)}" aria-pressed="false" data-record-action="selectCc" data-record-id="${escapeHTML(t.id)}">
+              <div id="cc-checkbox-${escapeHTML(t.id)}" class="w-5 h-5 rounded-full border border-gray-500 flex items-center justify-center transition-colors cursor-pointer hover:border-accent-500">
                 <i class="fas fa-check text-xs text-white opacity-0 transition-opacity"></i>
               </div>
-            </div>
+            </button>
           `;
         }
 
         // The main row
         const mainRow = document.createElement("div");
         mainRow.className = "flex justify-between items-center gap-x-2 w-full cursor-pointer";
+        if (!selectionMode) mainRow.classList.add("cc-payment-history-main");
         mainRow.onclick = () => {
+          if (selectionMode) {
+            return;
+          }
           if (window.matchMedia("(min-width: 640px)").matches) {
             // Desktop: Toggle drawer logic
             $$(".cc-history-row .overflow-hidden").forEach(drawer => {
@@ -2154,11 +2183,12 @@ function openCcHistoryModal() {
           ${checkboxHtml}
           <div class="flex-grow min-w-0 mr-2 text-left">
               <p class="font-medium truncate ${t.paidOff ? "text-gray-500" : "text-gray-200"}">${escapeHTML(t.description)}</p>
-              <p class="text-xs text-gray-400 mt-0.5 truncate">${formattedDate} &bull; ${statusText}</p>
+              <p class="text-xs text-gray-400 mt-0.5 truncate">${formattedDate}${getCcPurchaseCategory(t) ? `<span class="cc-list-category"> &bull; ${escapeHTML(getCcPurchaseCategory(t))}</span>` : ""} &bull; ${statusText}</p>
           </div>
-          <div class="flex items-center justify-end flex-shrink-0 text-right">
+          <div class="cc-payment-history-value flex items-center justify-end flex-shrink-0 text-right">
               ${bigAmountText}
           </div>
+          ${isSelectable && !selectionMode ? `<button type="button" class="btn btn-primary cc-direct-pay" data-record-action="payCc" data-record-id="${escapeHTML(t.id)}" aria-label="Pay ${escapeHTML(t.description)}">Pay</button>` : ""}
         `;
 
       // Expandable Drawer
@@ -2168,20 +2198,20 @@ function openCcHistoryModal() {
       drawerDiv.style.opacity = "0";
       
       let payButtonHtml = "";
-      if (isSelectable) {
-        payButtonHtml = `<button class="btn btn-primary flex-1 py-1 sm:py-1.5 px-0 text-sm" onclick="event.stopPropagation(); openPayCcItemForm('${t.id}')"><i class="fas fa-credit-card mr-1"></i> Pay</button>`;
+      if (isSelectable && selectionMode) {
+        payButtonHtml = `<button class="btn btn-primary flex-1 py-1 sm:py-1.5 px-0 text-sm" data-record-action="payCc" data-record-id="${escapeHTML(t.id)}"><i class="fas fa-credit-card mr-1"></i> Pay</button>`;
       }
       
       drawerDiv.innerHTML = `
         <div class="flex w-full gap-2 pt-3 pb-1 pl-${isSelectable ? '8' : '0'}">
           ${payButtonHtml}
-          <button class="btn btn-secondary flex-1 py-1 sm:py-1.5 px-0 text-sm" onclick="event.stopPropagation(); openEditCcTransactionModal('${t.id}')"><i class="fas fa-edit mr-1"></i> Edit</button>
-          <button class="btn btn-secondary flex-1 hover:!text-expense hover:!border-expense py-1 sm:py-1.5 px-0 text-sm" onclick="event.stopPropagation(); deleteCcTransaction('${t.id}')"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
+          <button class="btn btn-secondary flex-1 py-1 sm:py-1.5 px-0 text-sm" data-record-action="editCc" data-record-id="${escapeHTML(t.id)}"><i class="fas fa-edit mr-1"></i> Edit</button>
+          <button class="btn btn-secondary flex-1 hover:!text-expense hover:!border-expense py-1 sm:py-1.5 px-0 text-sm" data-record-action="deleteCc" data-record-id="${escapeHTML(t.id)}"><i class="fas fa-trash-alt mr-1"></i> Delete</button>
         </div>
       `;
 
       itemDiv.appendChild(mainRow);
-      itemDiv.appendChild(drawerDiv);
+      if (!selectionMode) itemDiv.appendChild(drawerDiv);
       listContainer.appendChild(itemDiv);
     });
 
@@ -2223,6 +2253,13 @@ function openCcHistoryModal() {
   document.body.renderCcHistoryList = renderFilteredCcList;
 
   // --- Bulk Selection Logic ---
+  const selectMultiple = document.getElementById("ccSelectMultipleBtn");
+  selectMultiple.onclick = () => {
+    selectionMode = !selectionMode;
+    updateCcSelectionControl(selectMultiple, selectionMode);
+    renderFilteredCcList();
+  };
+  updateCcSelectionControl(selectMultiple, false);
   window.toggleCcItemSelection = (id) => {
     if (!window.ccSelectedItems) window.ccSelectedItems = new Set();
     const checkbox = document.getElementById(`cc-checkbox-${id}`);
@@ -2239,6 +2276,7 @@ function openCcHistoryModal() {
       checkbox.querySelector("i").classList.remove("opacity-0");
       checkbox.querySelector("i").classList.add("opacity-100");
     }
+    checkbox.parentElement.setAttribute("aria-pressed", String(window.ccSelectedItems.has(id)));
     updateCcBulkPaymentBar();
   };
 
@@ -2268,34 +2306,33 @@ function openCcHistoryModal() {
 
   window.openBulkPayCcItemForm = () => {
     if (!window.ccSelectedItems || window.ccSelectedItems.size === 0) return;
+    const selectedIds = [...window.ccSelectedItems];
     
     let totalAmount = 0;
     let itemsHtml = "";
     
-    let categoryOptions = `<option value="" disabled selected>Select Category</option>`;
-    const expenseCategories = state.categories
-      .filter((c) => c.toLowerCase() !== "income")
-      .sort((a, b) => a.localeCompare(b));
-
-    expenseCategories.forEach((cat) => {
-      categoryOptions += `<option value="${cat}">${cat}</option>`;
-    });
-
-    window.ccSelectedItems.forEach(id => {
+    selectedIds.forEach(id => {
       const item = state.creditCard.transactions.find(t => t.id === id);
       if (item) {
         const remaining = item.amount - (item.paidAmount || 0);
         totalAmount += remaining;
         
         itemsHtml += `
-          <div class="mb-3 pb-3 border-b border-gray-700 last:border-0 last:pb-0">
-            <div class="flex justify-between items-center mb-1.5">
-              <span class="font-medium text-sm truncate pr-2 text-gray-100">${escapeHTML(item.description)}</span>
+          <div class="cc-payment-item">
+            <div class="cc-payment-item-title">
+              <span class="cc-payment-description">${escapeHTML(item.description)}</span>
               <span class="text-expense font-semibold text-sm flex-shrink-0 tabular-nums">${formatCurrency(remaining)}</span>
             </div>
-            <select name="payCategory_${id}" class="w-full text-sm" required>
-              ${categoryOptions}
+            <div class="cc-payment-fields">
+            <label class="cc-payment-amount-label">Pay Amount
+              <div class="relative flex items-center w-full"><input type="text" inputmode="decimal" class="calc-amount pr-8" name="payAmount_${escapeHTML(id)}" min="0" max="${remaining.toFixed(2)}" step="0.01" value="${remaining.toFixed(2)}" required><button type="button" class="calc-toggle-btn absolute right-2 text-gray-400 hover:text-accent-500 transition-colors focus:outline-none" aria-label="Toggle Calculator" tabindex="-1"><i class="fas fa-calculator" aria-hidden="true"></i></button></div>
+            </label>
+            <label class="cc-payment-category-label">Category
+            <select name="payCategory_${escapeHTML(id)}" class="w-full text-sm" required>
+              ${ccPurchaseCategoryOptions(getCcPurchaseCategory(item), false)}
             </select>
+            </label>
+            </div>
           </div>
         `;
       }
@@ -2303,15 +2340,15 @@ function openCcHistoryModal() {
 
     const formHtml = `
         <input type="hidden" name="isBulkCcPayment" value="true">
-        <p class="mb-4 text-sm text-gray-300">You are settling <span class="text-white font-semibold">${window.ccSelectedItems.size} items</span> for a total of <span class="font-semibold text-expense text-base tabular-nums">${formatCurrency(totalAmount)}</span>.</p>
+        <p class="cc-payment-intro">${selectedIds.length} ${selectedIds.length === 1 ? "purchase" : "purchases"}. Adjust each amount to pay in full or in part.</p>
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">Pay From Account</label>
-          <select name="payFromAccount" class="w-full text-sm" required>
+          <label for="ccMultiplePayAccount" class="block text-sm font-medium mb-1">Pay From Account</label>
+          <select id="ccMultiplePayAccount" name="payFromAccount" class="w-full text-sm" required>
             ${state.accounts
               .filter((acc) => !acc.hidden)
               .map(
                 (acc) =>
-                  `<option value="${acc.id}">${escapeHTML(acc.name)} (${formatCurrency(
+                  `<option value="${escapeHTML(acc.id)}">${escapeHTML(acc.name)} (${formatCurrency(
                     acc.balance
                   )})</option>`
               )
@@ -2319,23 +2356,28 @@ function openCcHistoryModal() {
           </select>
         </div>
         
+        <div class="flex items-center mt-3 mb-1">
+          <input type="checkbox" id="logBulkCcPaymentAsExpense" name="logBulkCcPaymentAsExpense" class="h-4 w-4 text-accent-500 border-gray-500 rounded focus:ring-accent-500 mr-2" checked>
+          <label for="logBulkCcPaymentAsExpense" class="text-sm font-medium text-gray-300">Log as Expense</label>
+        </div>
         <div class="mb-4 mt-5 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
-          <label class="block text-sm font-medium mb-3 text-gray-300">Categorize Items</label>
+          <label id="bulkCcItemsHeading" class="block text-sm font-medium mb-3 text-gray-300">Payment Breakdown</label>
           ${itemsHtml}
         </div>
         
-        <p class="text-xs text-gray-400 mb-4 bg-tertiary border border-theme p-3 rounded"><i class="fas fa-info-circle mr-1"></i> A separate transaction will be created in your bank account for each item to ensure pie charts remain accurate.</p>
+        <div class="cc-payment-summary cc-payment-summary-compact" aria-live="polite"><span>Total Payment<strong id="ccPaymentTotal">${formatCurrency(totalAmount)}</strong></span><span id="ccPaymentRemainingGroup" hidden>Remaining After<strong id="ccPaymentRemaining">${formatCurrency(0)}</strong></span></div>
         <div class="flex justify-end gap-2">
             <button type="button" class="btn btn-secondary flex-1" onclick="closeModal('formModal')">Cancel</button>
-            <button type="submit" class="btn btn-primary flex-1"><i class="fas fa-check-circle mr-1"></i> Settle All</button>
+            <button type="submit" class="btn btn-primary flex-1">Pay Selected</button>
         </div>
     `;
 
-    openFormModal("Bulk CC Payment", formHtml, (e) => {
+    openFormModal("Pay Selected Purchases", formHtml, async (e) => {
       e.preventDefault();
       const form = e.target;
       const formData = new FormData(form);
       const payFromAccountId = formData.get("payFromAccount");
+      const logAsExpense = formData.get("logBulkCcPaymentAsExpense") === "on";
       
       const account = state.accounts.find((a) => a.id === payFromAccountId);
       if (!account) {
@@ -2345,63 +2387,113 @@ function openCcHistoryModal() {
       
       let paidItemCount = 0;      
       let aggregateAmount = 0;
+      let validCategories = true;
+      const payments = [];
+      let invalidAmount = false;
       
-      window.ccSelectedItems.forEach(id => {
+      selectedIds.forEach(id => {
         const item = state.creditCard.transactions.find(t => t.id === id);
-        if (item) {
-          const remaining = item.amount - (item.paidAmount || 0);
-          if (remaining > 0) {
-            aggregateAmount += remaining;
+        if (!item) { invalidAmount = true; return; }
+        {
+          const remaining = roundToTwoDecimals(item.amount - (item.paidAmount || 0));
+          const raw = formData.get(`payAmount_${id}`);
+          const amount = roundToTwoDecimals(parseAmountValue(raw));
+          if (raw === null || String(raw).trim() === "" || !Number.isFinite(amount) || amount < 0 || amount > remaining || item.paidOff) {
+            invalidAmount = true; return;
+          }
+          if (amount > 0) {
+            aggregateAmount = roundToTwoDecimals(aggregateAmount + amount);
+            payments.push({item, amount});
+            if (logAsExpense && !getCcPurchaseCategory({category: formData.get(`payCategory_${id}`)})) validCategories = false;
           }
         }
       });
+      if (invalidAmount || aggregateAmount <= 0) {
+        showNotification("Enter payment amounts within each purchase's remaining balance.", "error");
+        return;
+      }
       
+      if (!validCategories) {
+        showNotification("Select a category for each item when logging expenses.", "error");
+        return;
+      }
       if (account.balance < aggregateAmount) {
         showNotification(`Insufficient funds in ${account.name}.`, "warning");
         return;
       }
       
-      window.ccSelectedItems.forEach(id => {
-        const item = state.creditCard.transactions.find(t => t.id === id);
-        if (item) {
-          const remaining = item.amount - (item.paidAmount || 0);
-          if (remaining > 0) {
-            item.paidAmount = item.amount;
-            item.paidOff = true;
+      payments.forEach(({item, amount}) => {
+          {
+            item.paidAmount = roundToTwoDecimals((item.paidAmount || 0) + amount);
+            item.paidOff = item.paidAmount >= item.amount;
             paidItemCount++;
             
-            const payCategory = formData.get(`payCategory_${id}`);
-            
-            // Record individual bank transaction for perfect chart tracking
-            const bankTx = {
-              id: generateId(),
-              amount: remaining,
-              description: `Credit Card Payment: ${item.description}`,
-              category: payCategory,
-              type: "expense",
-              account: payFromAccountId,
-              date: getCurrentDateString(),
-              timestamp: Date.now(),
-            };
-            state.transactions.push(bankTx);
+            if (logAsExpense) {
+              const payCategory = formData.get(`payCategory_${item.id}`);
+              if (!getCcPurchaseCategory(item)) item.category = payCategory;
+              const bankTx = {
+                id: generateId(),
+                amount,
+                description: `Credit Card Payment: ${item.description}`,
+                category: payCategory,
+                type: "expense",
+                account: payFromAccountId,
+                date: getCurrentDateString(),
+                timestamp: Date.now(),
+              };
+              state.transactions.push(bankTx);
+            }
           }
-        }
       });
       
       if (aggregateAmount > 0) {
         // Deduct from bank balance
-        account.balance -= aggregateAmount;
+        account.balance = roundToTwoDecimals(account.balance - aggregateAmount);
         
-        saveData();
+        await saveData();
+        selectionMode = false;
+        updateCcSelectionControl(selectMultiple, false);
         renderFilteredCcList();
         renderCreditCardSection();
         renderDashboard();
-        showNotification(`Settled ${paidItemCount} items successfully.`, "success");
+        if (logAsExpense) refreshMonthlyViewIfRelevant(getCurrentDateString());
+        showNotification(`Payment recorded for ${paidItemCount} purchases.`, "success");
         if (typeof trackEvent === "function") trackEvent("bulk_pay_cc", "Engagement", paidItemCount);
       }
       
       closeModal("formModal");
     });
+    const expenseToggle = document.getElementById("logBulkCcPaymentAsExpense");
+    expenseToggle.onchange = () => {
+      const logExpenses = expenseToggle.checked;
+      document.getElementById("dynamicForm").querySelectorAll('[name^="payCategory_"]').forEach(select => {
+        select.required = logExpenses;
+        select.disabled = !logExpenses;
+        select.hidden = !logExpenses;
+      });
+      document.getElementById("bulkCcItemsHeading").textContent = "Payment Breakdown";
+      updatePaymentPreview();
+    };
+    const paymentForm = document.getElementById("dynamicForm");
+    function updatePaymentPreview() {
+      let total = 0;
+      let valid = true;
+      selectedIds.forEach(id => {
+        const input = paymentForm.elements.namedItem(`payAmount_${id}`);
+        const amount = roundToTwoDecimals(parseAmountValue(input.value));
+        const item = state.creditCard.transactions.find(t => t.id === id);
+        if (!item || input.value.trim() === "" || !Number.isFinite(amount) || amount < 0 || amount > roundToTwoDecimals(item.amount - (item.paidAmount || 0))) valid = false;
+        if (Number.isFinite(amount) && amount > 0) total = roundToTwoDecimals(total + amount);
+        const category = paymentForm.elements.namedItem(`payCategory_${id}`);
+        category.required = expenseToggle.checked && amount > 0;
+        category.disabled = !expenseToggle.checked || !(amount > 0);
+        category.parentElement.hidden = !expenseToggle.checked;
+      });
+      document.getElementById("ccPaymentTotal").textContent = valid ? formatCurrency(total) : "—";
+      document.getElementById("ccPaymentRemaining").textContent = valid ? formatCurrency(roundToTwoDecimals(totalAmount - total)) : "—";
+      document.getElementById("ccPaymentRemainingGroup").hidden = !valid || total <= 0 || roundToTwoDecimals(totalAmount - total) <= 0;
+    }
+    paymentForm.oninput = updatePaymentPreview;
   };
 
   // Initial render
@@ -2409,13 +2501,18 @@ function openCcHistoryModal() {
   openModalHelper("ccHistoryModal");
 }
 
-function handleCcTransactionSubmit(event) {
+async function handleCcTransactionSubmit(event) {
   event.preventDefault();
   const form = event.target,
     formData = new FormData(form);
-  const amount = parseFloat(String(formData.get("ccAmount")).replace(/,/g, ''));
+  const amount = parseAmountValue(formData.get("ccAmount"));
   const description = formData.get("ccDescription").trim();
   const date = formData.get("ccDate");
+  const category = formData.get("ccPurchaseCategory") || "";
+  if (category && !getCcPurchaseCategory({category})) {
+    showNotification("Choose a valid category or leave this purchase uncategorized.", "error");
+    return;
+  }
 
   if (isNaN(amount) || amount <= 0) {
     showNotification("Valid amount required for CC transaction.", "error");
@@ -2444,15 +2541,19 @@ function handleCcTransactionSubmit(event) {
     timestamp,
   };
   state.creditCard.transactions.push(newCcTransaction);
+  if (category) newCcTransaction.category = category;
+  await saveData();
   showNotification("CC transaction added.", "success");
+  if (form.contains?.(document.activeElement)) document.activeElement.blur();
   if (typeof trackEvent === "function") trackEvent("add_cc_transaction", "Engagement");
 
-  saveData();
   renderCreditCardSection(); // This will use the rounded amount
   if ($("#ccHistoryModal").style.display === "block") openCcHistoryModal();
   form.reset();
   const ccDateInput = form.querySelector("#ccDate");
   if (ccDateInput) ccDateInput.value = getCurrentDateString(); // Use local date
+  const categoryInput = form.querySelector("#ccPurchaseCategory");
+  if (categoryInput) categoryInput.value = "";
 }
 
 function openEditCcTransactionModal(ccTransactionId) {
@@ -2469,13 +2570,17 @@ function openEditCcTransactionModal(ccTransactionId) {
 
   const formHtml = `
             <input type="hidden" name="editCcTransactionId" value="${
-              transaction.id
+              escapeHTML(transaction.id)
             }">
             <div>
                 <label for="modalCcAmount" class="block text-sm font-medium mb-1">Amount (LKR)</label>
                 <div class="relative flex items-center w-full"><input type="text" inputmode="decimal" class="calc-amount pr-8" id="modalCcAmount" name="ccAmount" value="${transaction.amount.toFixed(
                   2
                 )}" step="0.01" min="0" placeholder="Amount spent" required><button type="button" class="calc-toggle-btn absolute right-4 text-gray-400 hover:text-accent-500 transition-colors focus:outline-none" tabindex="-1"><i class="fas fa-calculator"></i></button></div>
+            </div>
+            <div>
+                <label for="modalCcPurchaseCategory" class="block text-sm font-medium mb-1">Category (Optional)</label>
+                <select id="modalCcPurchaseCategory" name="ccPurchaseCategory">${ccPurchaseCategoryOptions(getCcPurchaseCategory(transaction))}</select>
             </div>
             <div>
                 <label for="modalCcDescription" class="block text-sm font-medium mb-1">Description</label>
@@ -2486,7 +2591,7 @@ function openEditCcTransactionModal(ccTransactionId) {
             <div>
                 <label for="modalCcDate" class="block text-sm font-medium mb-1">Date</label>
                 <input type="date" id="modalCcDate" name="ccDate" value="${
-                  transaction.date
+                  escapeHTML(transaction.date)
                 }" required>
             </div>
             <button type="submit" class="btn btn-primary w-full"><i class="fas fa-save"></i> Update CC Transaction</button>
@@ -2498,7 +2603,7 @@ function openEditCcTransactionModal(ccTransactionId) {
   );
 }
 
-function handleEditCcTransactionModalSubmit(event) {
+async function handleEditCcTransactionModalSubmit(event) {
   event.preventDefault();
   const form = event.target;
   const formData = new FormData(form);
@@ -2513,9 +2618,14 @@ function handleEditCcTransactionModalSubmit(event) {
     return;
   }
 
-  const newAmount = parseFloat(String(formData.get("ccAmount")).replace(/,/g, ''));
+  const newAmount = parseAmountValue(formData.get("ccAmount"));
   const newDescription = formData.get("ccDescription").trim();
   const newDate = formData.get("ccDate");
+  const category = formData.get("ccPurchaseCategory") || "";
+  if (category && !getCcPurchaseCategory({category})) {
+    showNotification("Choose a valid category or leave this purchase uncategorized.", "error");
+    return;
+  }
 
   if (isNaN(newAmount) || newAmount <= 0) {
     showNotification("Valid amount required for CC transaction.", "error");
@@ -2535,6 +2645,8 @@ function handleEditCcTransactionModalSubmit(event) {
   transaction.amount = roundedNewAmount;
   transaction.description = newDescription;
   transaction.date = newDate;
+  if (category) transaction.category = category;
+  else delete transaction.category;
   // Do not update timestamp on edit to preserve original order in lists
 
   // Adjust paidAmount and paidOff status if new amount is less than what was already paid
@@ -2548,7 +2660,7 @@ function handleEditCcTransactionModalSubmit(event) {
     transaction.paidOff = false;
   }
 
-  saveData();
+  await saveData();
   renderCreditCardSection();
 
   // If the history modal is open, just refresh its content
@@ -2579,27 +2691,19 @@ function deleteCcTransaction(transactionId) {
       escapeHTML(transaction.description)
     }"</strong> (${formatCurrency(
       transaction.amount
-    )})?<br><br><strong class="text-warning">Warning:</strong> This will also remove any associated payment records made through the app for this specific CC item.`,
+    )})?<br><br>Payments already recorded and account balances will be kept.`,
     "Delete",
     "Cancel",
-    () => {
+    async () => {
       // onConfirm
-      state.transactions = state.transactions.filter(
-        (tx) =>
-          !(
-            (
-              tx.category === "Credit Card Payment" &&
-              tx.description.includes(transaction.description.substring(0, 15))
-            ) // Ensure this matching logic is your intent
-          )
-      );
       state.creditCard.transactions.splice(transactionIndex, 1);
-      saveData();
+      await saveData();
       renderDashboard();
       renderCreditCardSection();
       if ($("#ccHistoryModal").style.display === "block") openCcHistoryModal();
+      refreshMonthlyViewIfRelevant(transaction.date);
       showNotification(
-        "CC transaction and related payments deleted.",
+        "CC transaction deleted. Recorded payments and account balances were kept.",
         "success"
       );
 
@@ -2633,10 +2737,10 @@ function openAddDebtForm() {
     debtDueDateInput.value = `${year}-${month}-${day}`;
 }
 
-function handleAddDebtSubmit(event) {
+async function handleAddDebtSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
-  const amount = parseFloat(String(form.get("debtAmount")).replace(/,/g, ''));
+  const amount = parseAmountValue(form.get("debtAmount"));
 
   if (isNaN(amount) || amount <= 0) {
     showNotification("Invalid amount for debt.", "error");
@@ -2659,7 +2763,7 @@ function handleAddDebtSubmit(event) {
     return;
   }
   state.debts.push(newDebt);
-  saveData();
+  await saveData();
   renderDashboard(); // This will call renderDebtList which should use formatted values
   closeModal("formModal");
   showNotification("Debt added.", "success");
@@ -2671,7 +2775,7 @@ function openEditDebtForm(id) {
   openFormModal(
     "Edit Debt",
     ` <input type="hidden" name="editDebtId" value="${
-      d.id
+      escapeHTML(d.id)
     }"> <div><label class="block text-sm font-medium mb-1">Original Amount</label><div class="relative flex items-center w-full"><input type="text" inputmode="decimal" class="calc-amount pr-8" name="debtOriginalAmount" value="${(
       d.originalAmount || d.amount
     ).toFixed(
@@ -2683,13 +2787,13 @@ function openEditDebtForm(id) {
     }" required></div> <div><label class="block text-sm font-medium mb-1">Why</label><input type="text" name="debtWhy" value="${
       escapeHTML(d.why)
     }" required></div> <div><label class="block text-sm font-medium mb-1">Due Date</label><input type="date" name="debtDueDate" value="${
-      d.dueDate
+      escapeHTML(d.dueDate)
     }" required></div> <button type="submit" class="btn btn-primary w-full">Update Debt</button> `,
     handleEditDebtSubmit
   );
 }
 
-function handleEditDebtSubmit(event) {
+async function handleEditDebtSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const id = form.get("editDebtId");
@@ -2699,8 +2803,8 @@ function handleEditDebtSubmit(event) {
     return;
   }
 
-  const originalAmount = parseFloat(String(form.get("debtOriginalAmount")).replace(/,/g, ''));
-  const remainingAmount = parseFloat(String(form.get("debtRemainingAmount")).replace(/,/g, ''));
+  const originalAmount = parseAmountValue(form.get("debtOriginalAmount"));
+  const remainingAmount = parseAmountValue(form.get("debtRemainingAmount"));
 
   if (
     isNaN(originalAmount) ||
@@ -2724,7 +2828,7 @@ function handleEditDebtSubmit(event) {
   debt.timestamp = Date.now(); // Timestamp update is fine for edits if it signifies last modification
   debt.amount = debt.originalAmount; // Ensure 'amount' (if used elsewhere) matches originalAmount
 
-  saveData();
+  await saveData();
   renderDashboard();
   closeModal("formModal");
   showNotification("Debt updated.", "success");
@@ -2743,7 +2847,7 @@ function openPayDebtForm(debtId) {
         c.toLowerCase() !== "credit card payment" &&
         c.toLowerCase() !== debtRepaymentCategoryName.toLowerCase()
     )
-    .sort((a, b) => a.localeCompare(b));
+    .sort(compareCategoryNames);
 
   if (
     state.categories.some(
@@ -2755,7 +2859,7 @@ function openPayDebtForm(debtId) {
     categoryOptions += `<option value="${debtRepaymentCategoryName}" selected>${debtRepaymentCategoryName} (Suggested)</option>`;
   }
   otherCategories.forEach((cat) => {
-    categoryOptions += `<option value="${cat}">${cat}</option>`;
+    categoryOptions += `<option value="${escapeHTML(cat)}">${escapeHTML(cat)}</option>`;
   });
 
   const formHtml = `
@@ -2780,7 +2884,7 @@ function openPayDebtForm(debtId) {
           <label for="modalPayDebtCategory" class="block text-sm font-medium mb-1">Category for this Payment</label>
           <select id="modalPayDebtCategory" name="payDebtCategory" required>${categoryOptions}</select>
       </div>
-      <input type="hidden" name="debtId" value="${debtId}">
+      <input type="hidden" name="debtId" value="${escapeHTML(debtId)}">
       <button type="submit" class="btn btn-primary w-full mt-3">Make Payment</button>
   `;
   openFormModal(`Pay Debt: ${debt.who}`, formHtml, handlePayDebtSubmit);
@@ -2808,11 +2912,11 @@ function openPayDebtForm(debtId) {
   }
 }
 
-function handlePayDebtSubmit(event) {
+async function handlePayDebtSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const debtId = form.get("debtId");
-  const paymentAmount = parseFloat(String(form.get("payDebtAmount")).replace(/,/g, ''));
+  const paymentAmount = parseAmountValue(form.get("payDebtAmount"));
   const accountId = form.get("payDebtAccount");
   const logAsExpense = form.get("logDebtPaymentAsExpense") === "on";
   const category = logAsExpense ? form.get("payDebtCategory") : null;
@@ -2853,7 +2957,6 @@ function handlePayDebtSubmit(event) {
       amount: roundedPaymentAmount,
       account: accountId,
       category: category,
-      // CORRECTED: Store the full description, not the truncated version.
       description: `Debt Payment: ${debt.who} - ${debt.why}`,
       date: currentDate,
       timestamp: Date.now(),
@@ -2873,7 +2976,7 @@ function handlePayDebtSubmit(event) {
     }`;
   }
 
-  saveData();
+  await saveData();
   renderDashboard();
   populateDropdowns();
   closeModal("formModal");
@@ -2893,10 +2996,10 @@ function deleteDebt(debtId) {
     )})?<br><br>This removes the record only.`,
     "Delete",
     "Cancel",
-    () => {
+    async () => {
       // onConfirm
       state.debts = state.debts.filter((d) => d.id !== debtId);
-      saveData();
+      await saveData();
       renderDashboard();
       if ($("#debtsViewModal").style.display === "block") renderDebtList();
       showNotification("Debt entry deleted.", "success");
@@ -2988,10 +3091,10 @@ function toggleReceivableSourceAccount(type, groupId, selectId) {
   }
 }
 
-function handleAddReceivableSubmit(event) {
+async function handleAddReceivableSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
-  const amount = parseFloat(String(form.get("recAmount")).replace(/,/g, ''));
+  const amount = parseAmountValue(form.get("recAmount"));
   const type = form.get("recType");
   const sourceAccountId =
     type === "cash" ? form.get("receivableSourceAccount") : null;
@@ -3049,7 +3152,7 @@ function handleAddReceivableSubmit(event) {
   }
 
   state.receivables.push(newRec);
-  saveData();
+  await saveData();
   renderDashboard();
   populateDropdowns();
   if (type === "cc") renderCreditCardSection(); // If it affects CC, re-render that section
@@ -3070,7 +3173,7 @@ function openEditReceivableForm(id) {
   openFormModal(
     "Edit Receivable",
     ` <input type="hidden" name="editReceivableId" value="${
-      r.id
+      escapeHTML(r.id)
     }"> <div><label class="block text-sm font-medium mb-1">Original Amount</label><div class="relative flex items-center w-full"><input type="text" inputmode="decimal" class="calc-amount pr-8" name="recOriginalAmount" value="${(
       r.originalAmount || r.amount
     ).toFixed(
@@ -3086,7 +3189,7 @@ function openEditReceivableForm(id) {
     }"><label class="block text-sm font-medium mb-1">Source Account</label><select id="recSourceAccountEdit" name="receivableSourceAccount">${state.accounts
       .map(
         (acc) =>
-          `<option value="${acc.id}" ${
+          `<option value="${escapeHTML(acc.id)}" ${
             r.sourceAccount === acc.id ? "selected" : ""
           }>${escapeHTML(acc.name)} (${formatCurrency(acc.balance)})</option>`
       )
@@ -3097,7 +3200,7 @@ function openEditReceivableForm(id) {
     }" required></div> <div><label class="block text-sm font-medium mb-1">Why</label><input type="text" name="recWhy" value="${
       escapeHTML(r.why)
     }" required></div> <div><label class="block text-sm font-medium mb-1">Date Given</label><input type="date" name="recDateGiven" value="${
-      r.dateGiven
+      escapeHTML(r.dateGiven)
     }" required></div> <button type="submit" class="btn btn-primary w-full">Update Receivable</button> `,
     handleEditReceivableSubmit
   );
@@ -3110,7 +3213,7 @@ function openEditReceivableForm(id) {
     );
 }
 
-function handleEditReceivableSubmit(event) {
+async function handleEditReceivableSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const id = form.get("editReceivableId");
@@ -3125,8 +3228,8 @@ function handleEditReceivableSubmit(event) {
   const oldType = rec.type;
   const oldCcTxId = rec.ccTransactionId;
 
-  const newOriginalAmountForm = parseFloat(String(form.get("recOriginalAmount")).replace(/,/g, ''));
-  const newRemainingAmountForm = parseFloat(String(form.get("recRemainingAmount")).replace(/,/g, ''));
+  const newOriginalAmountForm = parseAmountValue(form.get("recOriginalAmount"));
+  const newRemainingAmountForm = parseAmountValue(form.get("recRemainingAmount"));
   const newType = form.get("recType");
   const newSourceAccountId =
     newType === "cash" ? form.get("receivableSourceAccount") : null;
@@ -3149,21 +3252,25 @@ function handleEditReceivableSubmit(event) {
     showNotification("Source account required for cash loan type.", "error");
     return;
   }
+  if (!["cash", "cc"].includes(newType)) {
+    showNotification("Invalid receivable type.", "error");
+    return;
+  }
 
   // Round amounts from form
   const roundedNewOriginalAmount = roundToTwoDecimals(newOriginalAmountForm);
   const roundedNewRemainingAmount = roundToTwoDecimals(newRemainingAmountForm);
 
-  // Revert effect of old receivable if type or source account or original amount changed
+  // Validate projected balances before changing either accounts or the receivable.
+  const proposedBalances = new Map();
   if (oldType === "cash" && oldSourceAccountId) {
     const oldSrcAccount = state.accounts.find(
       (acc) => acc.id === oldSourceAccountId
     );
     if (oldSrcAccount) {
-      oldSrcAccount.balance = roundToTwoDecimals(
-        oldSrcAccount.balance + oldOriginalAmount
-      );
-      if (isNaN(oldSrcAccount.balance)) oldSrcAccount.balance = 0;
+      proposedBalances.set(oldSrcAccount, roundToTwoDecimals(
+        oldSrcAccount.balance + (oldOriginalAmount ?? rec.amount)
+      ));
     }
   } else if (oldType === "cc" && oldCcTxId) {
     // If it was a CC type and had an associated CC transaction (if that logic existed)
@@ -3171,7 +3278,28 @@ function handleEditReceivableSubmit(event) {
     // Currently, ccTransactionId is not actively used to link to an auto-created CC expense.
   }
 
-  // Update receivable properties
+  if (newType === "cash") {
+    const newSrcAccount = state.accounts.find(acc => acc.id === newSourceAccountId);
+    if (!newSrcAccount) {
+      showNotification("Source account not found. No changes were saved.", "error");
+      return;
+    }
+    const available = proposedBalances.get(newSrcAccount) ?? newSrcAccount.balance;
+    if (available < roundedNewOriginalAmount) {
+      showNotification(`Insufficient funds in source account ${newSrcAccount.name}. No changes were saved.`, "warning");
+      return;
+    }
+    proposedBalances.set(newSrcAccount, roundToTwoDecimals(available - roundedNewOriginalAmount));
+  }
+  for (const balance of proposedBalances.values()) {
+    if (!Number.isFinite(balance)) {
+      showNotification("Invalid account balance. No changes were saved.", "error");
+      return;
+    }
+  }
+
+  // Commit the validated edit together; saveData restores the prior snapshot on failure.
+  proposedBalances.forEach((balance, account) => { account.balance = balance; });
   rec.who = form.get("recWho").trim();
   rec.why = form.get("recWhy").trim();
   rec.originalAmount = roundedNewOriginalAmount;
@@ -3183,45 +3311,7 @@ function handleEditReceivableSubmit(event) {
   rec.timestamp = Date.now();
   rec.ccTransactionId = null; // Reset if type changed, or if it was never used for auto-creation
 
-  // Apply effect of new receivable
-  if (rec.type === "cash" && rec.sourceAccount) {
-    const newSrcAccount = state.accounts.find(
-      (acc) => acc.id === rec.sourceAccount
-    );
-    if (newSrcAccount) {
-      if (newSrcAccount.balance < rec.originalAmount) {
-        showNotification(
-          `Insufficient funds in new source account ${newSrcAccount.name}. Reverting changes.`,
-          "warning"
-        );
-        // Re-apply old state (simplified: ideally, store full old rec object and restore)
-        if (oldType === "cash" && oldSourceAccountId) {
-          const oldSrcAccForRevert = state.accounts.find(
-            (acc) => acc.id === oldSourceAccountId
-          );
-          if (oldSrcAccForRevert)
-            oldSrcAccForRevert.balance = roundToTwoDecimals(
-              oldSrcAccForRevert.balance - oldOriginalAmount
-            );
-        }
-        // This revert is partial; a full object clone and restore would be safer for complex edits.
-        // For now, we'll just stop the update. The form will retain user's bad input.
-        return;
-      }
-      newSrcAccount.balance = roundToTwoDecimals(
-        newSrcAccount.balance - rec.originalAmount
-      );
-      if (isNaN(newSrcAccount.balance)) newSrcAccount.balance = 0;
-    }
-  } else if (rec.type === "cc") {
-    // If auto-creating a CC transaction upon edit to 'cc' type:
-    // const ccTx = { id: generateId(), amount: rec.originalAmount, ... };
-    // state.creditCard.transactions.push(ccTx);
-    // rec.ccTransactionId = ccTx.id;
-    // For now, no auto CC transaction creation on edit.
-  }
-
-  saveData();
+  await saveData();
   renderDashboard();
   populateDropdowns();
   if (rec.type === "cc" || oldType === "cc") renderCreditCardSection();
@@ -3269,7 +3359,7 @@ function openReceivePaymentForm(recId) {
       <select id="recPaymentAccount" name="recPaymentAccount" required></select>
     </div>
     ${disclaimerHtml} 
-    <input type="hidden" name="recId" value="${recId}">
+    <input type="hidden" name="recId" value="${escapeHTML(recId)}">
     <button type="submit" class="btn btn-primary w-full mt-3">Record Payment</button>
   `;
 
@@ -3300,11 +3390,11 @@ function openReceivePaymentForm(recId) {
   }
 }
 
-function handleReceivePaymentSubmit(event) {
+async function handleReceivePaymentSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const recId = form.get("recId");
-  const paymentAmountForm = parseFloat(String(form.get("recPaymentAmount")).replace(/,/g, ''));
+  const paymentAmountForm = parseAmountValue(form.get("recPaymentAmount"));
   const accountId = form.get("recPaymentAccount");
   const currentDate = getCurrentDateString();
 
@@ -3379,7 +3469,7 @@ function handleReceivePaymentSubmit(event) {
     )}.`;
   }
 
-  saveData();
+  await saveData();
   renderDashboard();
   populateDropdowns();
   closeModal("formModal");
@@ -3417,10 +3507,10 @@ function deleteReceivable(recId) {
     modalMessage,
     "Delete",
     "Cancel",
-    () => {
+    async () => {
       // onConfirm
       state.receivables = state.receivables.filter((r) => r.id !== recId);
-      saveData();
+      await saveData();
       renderDashboard();
       if ($("#receivablesViewModal").style.display === "block") {
         renderReceivableList();
@@ -3477,18 +3567,19 @@ function openAddInstallmentForm() {
   setupMaxMonthsValidation(totalMonthsInput, monthsLeftInput);
 }
 
-function handleAddInstallmentSubmit(event) {
+async function handleAddInstallmentSubmit(event) {
   event.preventDefault();
   const formData = new FormData(event.target);
-  const fullAmount = parseFloat(String(formData.get("instFullAmount")).replace(/,/g, ''));
-  const totalMonths = parseInt(formData.get("instTotalMonths"));
-  let monthsLeft = parseInt(formData.get("instMonthsLeft"));
+  const fullAmount = parseAmountValue(formData.get("instFullAmount"));
+  const totalMonths = parseAmountValue(formData.get("instTotalMonths"));
+  let monthsLeft = parseAmountValue(formData.get("instMonthsLeft"));
 
   if (
     isNaN(fullAmount) ||
     fullAmount <= 0 ||
     isNaN(totalMonths) ||
-    totalMonths <= 0
+    totalMonths <= 0 || !Number.isInteger(totalMonths) ||
+    (formData.get("instMonthsLeft")?.trim() && (!Number.isInteger(monthsLeft) || monthsLeft < 0 || monthsLeft > totalMonths))
   ) {
     showNotification(
       "Invalid full amount or total months for installment.",
@@ -3525,7 +3616,7 @@ function handleAddInstallmentSubmit(event) {
   }
 
   state.installments.push(newInstallment);
-  saveData();
+  await saveData();
   renderDashboard();
   closeModal("formModal");
   showNotification("Installment plan added.", "success");
@@ -3549,7 +3640,7 @@ function openEditInstallmentForm(id) {
     i.originalFullAmount || i.monthlyAmount * i.totalMonths;
 
   const formHtml = `
-    <input type="hidden" name="editInstallmentId" value="${i.id}">
+    <input type="hidden" name="editInstallmentId" value="${escapeHTML(i.id)}">
     <div>
       <label for="instDescription" class="block text-sm font-medium mb-1">Description</label>
       <input type="text" id="instDescription" name="instDescription" value="${
@@ -3577,7 +3668,7 @@ function openEditInstallmentForm(id) {
     <div>
       <label for="instStartDate" class="block text-sm font-medium mb-1">Start Date</label>
       <input type="date" id="instStartDate" name="instStartDate" value="${
-        i.startDate
+        escapeHTML(i.startDate)
       }" required>
     </div>
     ${disclaimerHtml} 
@@ -3592,7 +3683,7 @@ function openEditInstallmentForm(id) {
   setupMaxMonthsValidation(totalMonthsInput, monthsLeftInput);
 }
 
-function handleEditInstallmentSubmit(event) {
+async function handleEditInstallmentSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const id = form.get("editInstallmentId");
@@ -3602,15 +3693,15 @@ function handleEditInstallmentSubmit(event) {
     return;
   }
 
-  const fullAmount = parseFloat(String(form.get("instFullAmount")).replace(/,/g, ''));
-  const totalMonths = parseInt(form.get("instTotalMonths"));
-  const monthsLeft = parseInt(form.get("instMonthsLeft"));
+  const fullAmount = parseAmountValue(form.get("instFullAmount"));
+  const totalMonths = parseAmountValue(form.get("instTotalMonths"));
+  const monthsLeft = parseAmountValue(form.get("instMonthsLeft"));
 
   if (
     isNaN(fullAmount) ||
     fullAmount <= 0 ||
     isNaN(totalMonths) ||
-    totalMonths <= 0
+    totalMonths <= 0 || !Number.isInteger(totalMonths)
   ) {
     showNotification(
       "Invalid full amount or total months for installment.",
@@ -3618,7 +3709,7 @@ function handleEditInstallmentSubmit(event) {
     );
     return;
   }
-  if (isNaN(monthsLeft) || monthsLeft < 0 || monthsLeft > totalMonths) {
+  if (!Number.isInteger(monthsLeft) || monthsLeft < 0 || monthsLeft > totalMonths) {
     showNotification("Invalid months left for installment.", "error");
     return;
   }
@@ -3634,7 +3725,7 @@ function handleEditInstallmentSubmit(event) {
   inst.originalFullAmount = roundedFullAmount; // Update with new rounded full amount
   inst.timestamp = Date.now();
 
-  saveData();
+  await saveData();
   renderDashboard();
   closeModal("formModal");
   showNotification("Installment plan updated.", "success");
@@ -3664,14 +3755,14 @@ function payInstallmentMonth(installmentId) {
       <i class="fas fa-exclamation-triangle mr-1"></i>
       <strong>Note:</strong> This action only updates the installment status. No financial transaction will be recorded, and no account balances will be affected by this step. Remember to record the actual payment manually.
     </p>
-    <div class="flex justify-end gap-3 mt-4">
+    <div class="installment-confirm-actions flex justify-end gap-3 mt-4">
       <button type="button" id="cancelInstallmentConfirmBtn" class="btn btn-secondary">Cancel</button>
-      <button type="button" id="confirmInstallmentPayBtn" class="btn btn-primary">Confirm & Update Status</button>
+      <button type="button" id="confirmInstallmentPayBtn" class="btn btn-primary">Update Status</button>
     </div>
   `;
 
   openFormModal(
-    `Confirm Installment Update: ${installment.description}`,
+    "Confirm Installment Update",
     confirmationMessageHtml,
     null
   );
@@ -3680,8 +3771,8 @@ function payInstallmentMonth(installmentId) {
   const cancelBtn = document.getElementById("cancelInstallmentConfirmBtn");
 
   if (confirmBtn) {
-    confirmBtn.onclick = () => {
-      handleConfirmInstallmentPayment(installmentId);
+    confirmBtn.onclick = async () => {
+      await handleConfirmInstallmentPayment(installmentId);
       closeModal("formModal");
     };
   }
@@ -3692,7 +3783,7 @@ function payInstallmentMonth(installmentId) {
   }
 }
 
-function handleConfirmInstallmentPayment(installmentId) {
+async function handleConfirmInstallmentPayment(installmentId) {
   const installment = state.installments.find((i) => i.id === installmentId);
 
   if (!installment) {
@@ -3721,7 +3812,7 @@ function handleConfirmInstallmentPayment(installmentId) {
     notificationMessage = `Installment status updated for "${installment.description}". ${installment.monthsLeft} months remaining.`;
   }
 
-  saveData();
+  await saveData();
   renderDashboard();
   showNotification(notificationMessage, "success");
 }
@@ -3735,12 +3826,12 @@ function deleteInstallment(installmentId) {
     `Are you sure you want to delete the installment plan: <br><strong>"${escapeHTML(installment.description)}"</strong>?<br><br>This removes the record only.`,
     "Delete",
     "Cancel",
-    () => {
+    async () => {
       // onConfirm
       state.installments = state.installments.filter(
         (i) => i.id !== installmentId
       );
-      saveData();
+      await saveData();
       renderDashboard();
       showNotification("Installment plan deleted.", "success");
     }
@@ -3758,40 +3849,10 @@ function openPayCcItemForm(ccTransactionId) {
     return;
   }
 
-  const ccPaymentCategoryName = "Credit Card Payment";
-  let categoryOptions = "";
-  const otherCcCategories = state.categories
-    .filter(
-      (c) =>
-        c.toLowerCase() !== "income" &&
-        c.toLowerCase() !== ccPaymentCategoryName.toLowerCase()
-    )
-    .sort((a, b) => a.localeCompare(b));
-
-  if (
-    state.categories.some(
-      (c) => c.toLowerCase() === ccPaymentCategoryName.toLowerCase()
-    )
-  ) {
-    categoryOptions += `<option value="${ccPaymentCategoryName}" selected>${ccPaymentCategoryName}</option>`;
-  } else {
-    categoryOptions += `<option value="${ccPaymentCategoryName}" selected>${ccPaymentCategoryName} (Suggested)</option>`;
-  }
-  otherCcCategories.forEach((cat) => {
-    categoryOptions += `<option value="${cat}">${cat}</option>`;
-  });
-
   const formHtml = `
-      <input type="hidden" name="ccItemId" value="${item.id}">
-      <p class="mb-2 tabular-nums">Item Amount: ${formatCurrency(
-        item.amount
-      )}</p>
-      <p class="mb-2 tabular-nums">Paid So Far: ${formatCurrency(
-        item.paidAmount || 0
-      )}</p>
-      <p class="mb-2">Remaining on Item: <strong class="text-danger tabular-nums">${formatCurrency(
-        remaining
-      )}</strong></p>
+      <input type="hidden" name="ccItemId" value="${escapeHTML(item.id)}">
+      <p class="cc-payment-description">${escapeHTML(item.description)}</p>
+      <p class="cc-payment-balance">Outstanding <strong>${formatCurrency(remaining)}</strong>${item.paidAmount > 0 ? `<span>Paid ${formatCurrency(item.paidAmount)}</span>` : ""}</p>
       <div>
           <label for="ccItemPayAmount" class="block text-sm font-medium mb-1">Payment Amount</label>
           <div class="relative flex items-center w-full"><input type="text" inputmode="decimal" class="calc-amount pr-8" id="ccItemPayAmount" name="ccItemPayAmount" step="0.01" min="0.01" max="${remaining.toFixed(
@@ -3804,16 +3865,17 @@ function openPayCcItemForm(ccTransactionId) {
       </div>
       <div class="flex items-center mt-3 mb-1">
           <input type="checkbox" id="logCcPaymentAsExpense" name="logCcPaymentAsExpense" class="h-4 w-4 text-accent-500 border-gray-500 rounded focus:ring-accent-500 mr-2" checked>
-          <label for="logCcPaymentAsExpense" class="text-sm font-medium text-gray-300">Log this payment as an expense?</label>
+          <label for="logCcPaymentAsExpense" class="text-sm font-medium text-gray-300">Log as Expense</label>
       </div>
       <div id="ccPaymentCategoryGroup">
-          <label for="modalCcPayCategory" class="block text-sm font-medium mb-1">Category for this Payment</label>
-          <select id="modalCcPayCategory" name="ccPayCategory" required>${categoryOptions}</select>
+          <label for="modalCcPayCategory" class="block text-sm font-medium mb-1">Category</label>
+          <select id="modalCcPayCategory" name="ccPayCategory" required>${ccPurchaseCategoryOptions(getCcPurchaseCategory(item), false)}</select>
       </div>
-      <button type="submit" class="btn btn-primary w-full mt-3">Make Payment</button>
+      <div id="ccSinglePaymentRemainingGroup" class="cc-payment-summary cc-payment-summary-compact" aria-live="polite" hidden><span>Remaining After<strong id="ccSinglePaymentRemaining">${formatCurrency(0)}</strong></span></div>
+      <button type="submit" class="btn btn-primary w-full mt-3">Record Payment</button>
   `;
   openFormModal(
-    `Pay CC Item: ${item.description.substring(0, 30)}...`,
+    "Pay Purchase",
     formHtml,
     handlePayCcItemSubmit
   );
@@ -3822,6 +3884,7 @@ function openPayCcItemForm(ccTransactionId) {
   const logCcExpenseCheckbox = document.getElementById("logCcPaymentAsExpense");
   const ccCategoryGroupDiv = document.getElementById("ccPaymentCategoryGroup");
   const ccCategorySelect = document.getElementById("modalCcPayCategory");
+  ccCategorySelect.innerHTML = ccPurchaseCategoryOptions(getCcPurchaseCategory(item), false);
 
   if (logCcExpenseCheckbox && ccCategoryGroupDiv && ccCategorySelect) {
     ccCategoryGroupDiv.style.display = logCcExpenseCheckbox.checked
@@ -3839,13 +3902,19 @@ function openPayCcItemForm(ccTransactionId) {
       }
     };
   }
+  document.getElementById("ccItemPayAmount").oninput = (event) => {
+    const amount = parseAmountValue(event.target.value);
+    document.getElementById("ccSinglePaymentRemainingGroup").hidden = !Number.isFinite(amount) || amount <= 0 || roundToTwoDecimals(amount) >= roundToTwoDecimals(remaining);
+    document.getElementById("ccSinglePaymentRemaining").textContent = Number.isFinite(amount) && amount > 0 && amount <= remaining
+      ? formatCurrency(roundToTwoDecimals(remaining - amount)) : "—";
+  };
 }
 
-function handlePayCcItemSubmit(event) {
+async function handlePayCcItemSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const ccItemId = form.get("ccItemId");
-  const paymentAmountForm = parseFloat(String(form.get("ccItemPayAmount")).replace(/,/g, ''));
+  const paymentAmountForm = parseAmountValue(form.get("ccItemPayAmount"));
   const accountId = form.get("ccPayFromAccount");
   const logAsExpense = form.get("logCcPaymentAsExpense") === "on";
   const category = logAsExpense ? form.get("ccPayCategory") : null;
@@ -3871,7 +3940,12 @@ function handlePayCcItemSubmit(event) {
     showNotification("Invalid payment amount for CC item.", "error");
     return;
   }
+  if (logAsExpense && !getCcPurchaseCategory({category})) {
+    showNotification("Select a category for this payment.", "error");
+    return;
+  }
   if (!processPaymentDeduction(account, roundedPaymentAmount, logAsExpense, category)) return;
+  if (logAsExpense && !getCcPurchaseCategory(item)) item.category = category;
 
   item.paidAmount = roundToTwoDecimals(
     (item.paidAmount || 0) + roundedPaymentAmount
@@ -3895,7 +3969,6 @@ function handlePayCcItemSubmit(event) {
       amount: roundedPaymentAmount,
       account: accountId,
       category: category,
-      // CORRECTED: Store the full description, not the truncated version.
       description: `Credit Card Payment: ${item.description}`,
       date: paymentDate,
       timestamp: Date.now(),
@@ -3915,7 +3988,7 @@ function handlePayCcItemSubmit(event) {
     }`;
   }
 
-  saveData();
+  await saveData();
   renderDashboard();
   renderCreditCardSection();
   populateDropdowns();
@@ -3933,7 +4006,6 @@ function handlePayCcItemSubmit(event) {
 
 
 function renderDashboard() {
-  const cashCounterBtn = $("#cashCounterBtn");
   const topCardsContainer = $("#dashboardTopCardsContainer");
   const totalPotentialCard = $("#totalPotentialCard");
 
@@ -3951,25 +4023,9 @@ function renderDashboard() {
       }
     }
 
-    // Cash Counter visibility
-    const hideCashCounter = state.settings && state.settings.hideCashCounter;
-    if (cashCounterBtn) {
-      if (hideCashCounter) {
-        cashCounterBtn.style.display = "none";
-      } else {
-        cashCounterBtn.style.display = "flex";
-        visibleCards++;
-      }
-    }
 
-    // Adjust grid columns
-    if (visibleCards === 1) {
-      topCardsContainer.className = "grid grid-cols-1 gap-4 mb-4";
-    } else if (visibleCards === 2) {
-      topCardsContainer.className = "grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4";
-    } else {
-      topCardsContainer.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4";
-    }
+    topCardsContainer.className = "dashboard-summary-grid gap-4 mb-4";
+    topCardsContainer.dataset.visibleCards = String(visibleCards);
   }
 
   const debtsInstallmentsCard = $("#debtsInstallmentsCard");
@@ -4132,6 +4188,7 @@ function renderDashboard() {
   renderMonthlyOverviewChart();
   renderYearlyAndQuickStats();
   renderCategoryBudgets();
+  if (typeof Subscriptions !== "undefined") Subscriptions.render();
 }
 
 function renderYearlyAndQuickStats() {
@@ -4184,6 +4241,7 @@ function renderYearlyAndQuickStats() {
     // Yearly totals
     if (
       tDateForPeriodChecks >= startOfYear &&
+      tDateForPeriodChecks <= todayEnd &&
       tDateForPeriodChecks.getFullYear() === currentYear
     ) {
       if (t.type === "income") yearlyEarned += t.amount;
@@ -4223,17 +4281,17 @@ function renderYearlyAndQuickStats() {
     }
   });
 
-  $("#yearlyTotals").innerHTML = `<span class="whitespace-nowrap">Yearly: Earned ${formatCurrency(
+  $("#yearlyTotals").innerHTML = `<span class="overview-stat"><span>YTD Earned</span><strong>${formatCurrency(
     yearlyEarned
-  )}</span> / <span class="whitespace-nowrap">Spent ${formatCurrency(yearlySpent)}</span>`;
+  )}</strong></span><span class="overview-stat"><span>YTD Spent</span><strong>${formatCurrency(yearlySpent)}</strong></span>`;
 
   const quickStatsEl = $("#quickStats");
   // Update text to "Past 7 Days"
-  quickStatsEl.innerHTML = `<span class="whitespace-nowrap">Today: ${formatCurrency(
+  quickStatsEl.innerHTML = `<span class="overview-stat"><span>Today</span><strong>${formatCurrency(
     todaySpent
-  )} <span id="todaySpendingIndicator"></span></span> | <span class="whitespace-nowrap">Past 7 Days: ${formatCurrency(
+  )} <span id="todaySpendingIndicator"></span></strong></span><span class="overview-stat"><span>Past 7 Days</span><strong>${formatCurrency(
     current7DaysSpent
-  )} <span id="weekSpendingIndicator"></span></span>`; // ID "weekSpendingIndicator" is kept for now, but refers to 7-day period
+  )} <span id="weekSpendingIndicator"></span></strong></span>`;
 
   const todayIndicator = $("#todaySpendingIndicator");
   if (todaySpent > yesterdaySpent && yesterdaySpent >= 0) {
@@ -4266,6 +4324,18 @@ function renderYearlyAndQuickStats() {
 
 // --- CATEGORY BUDGETS DASHBOARD LOGIC ---
 
+async function dismissMonthlyBudgetReminder() {
+  if (isAppLocked() || storageOperationPending) return;
+  state.settings.budgetReminderHandledMonth = getCurrentDateString().slice(0, 7);
+  try {
+    await saveData();
+    renderCategoryBudgets();
+  } catch (error) {
+    // saveData restores the previous state and reports failed persistence.
+    if (!error.kaasiSaveFailure) showNotification(error.message, 'error');
+  }
+}
+
 function renderCategoryBudgets() {
   const container = $("#categoryBudgetsProgressContainer");
   const card = $("#categoryBudgetsDashboardCard");
@@ -4281,14 +4351,10 @@ function renderCategoryBudgets() {
   // Handle Collapsed State
   const toggleBtn = $("#toggleBudgetsCardBtn");
   const headerEl = card.querySelector(".flex.justify-between.items-center");
-  const isCollapsed = localStorage.getItem("kaasi_collapseCategoryBudgets") === "true";
+  const isCollapsed = appPreferences.getItem("kaasi_collapseCategoryBudgets") === "true";
   
-  const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const isFirst5Days = now.getDate() <= 5;
-  const lastDismissed = localStorage.getItem("kaasi_lastDismissedBudgetTipMonth");
-  const isDismissedForThisMonth = lastDismissed === currentMonthStr;
-  const showTip = isFirst5Days && !isDismissedForThisMonth;
+  const currentMonthStr = getCurrentDateString().slice(0, 7);
+  const showTip = state.settings.budgetReminderHandledMonth !== currentMonthStr;
 
   if (isCollapsed) {
     container.style.maxHeight = "0px";
@@ -4322,24 +4388,17 @@ function renderCategoryBudgets() {
             <i class="fas fa-lightbulb text-accent-500 mt-0.5"></i>
             <div>
               <span class="font-semibold text-accent-400 text-[11px] block mb-0.5">Monthly Budget Check</span>
-              It's the start of the month. Do you need to adjust or update your budget limits in Settings?
+              Review this month's budgets. Keep your current limits or update them in Settings.
             </div>
           </div>
-          <button id="dismissBudgetTipBtn" class="text-gray-400 hover:text-white ml-2 focus:outline-none" data-tooltip="Dismiss">
+          <button type="button" id="dismissBudgetTipBtn" class="text-gray-400 hover:text-white ml-2 focus:outline-none" data-tooltip="Dismiss" aria-label="Dismiss monthly budget reminder">
             <i class="fas fa-times"></i>
           </button>
         </div>
       `;
       const dismissBtn = $("#dismissBudgetTipBtn");
       if (dismissBtn) {
-        dismissBtn.addEventListener("click", () => {
-          localStorage.setItem("kaasi_lastDismissedBudgetTipMonth", currentMonthStr);
-          tipContainer.classList.add("hidden");
-          if (localStorage.getItem("kaasi_collapseCategoryBudgets") === "true" && headerEl) {
-            headerEl.classList.remove("border-b", "border-gray-600", "pb-2", "mb-4");
-            headerEl.classList.add("mb-0");
-          }
-        });
+        dismissBtn.addEventListener("click", dismissMonthlyBudgetReminder);
       }
     } else {
       tipContainer.classList.add("hidden");
@@ -4349,7 +4408,7 @@ function renderCategoryBudgets() {
   // Set up event listener if not already done
   if (toggleBtn && !toggleBtn.dataset.listenerAttached) {
     toggleBtn.addEventListener("click", () => {
-      const currentlyCollapsed = localStorage.getItem("kaasi_collapseCategoryBudgets") === "true";
+      const currentlyCollapsed = appPreferences.getItem("kaasi_collapseCategoryBudgets") === "true";
       const header = card.querySelector(".flex.justify-between.items-center");
       const tip = $("#categoryBudgetsTipContainer");
       const isTipVisible = tip && !tip.classList.contains("hidden");
@@ -4367,10 +4426,10 @@ function renderCategoryBudgets() {
         container.offsetHeight; // force reflow
         container.style.maxHeight = container.scrollHeight + "px";
         toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-        localStorage.setItem("kaasi_collapseCategoryBudgets", "false");
+        appPreferences.setItem("kaasi_collapseCategoryBudgets", "false");
 
         const onTransitionEnd = () => {
-          if (localStorage.getItem("kaasi_collapseCategoryBudgets") === "false") {
+          if (appPreferences.getItem("kaasi_collapseCategoryBudgets") === "false") {
             container.style.maxHeight = "";
           }
           container.classList.remove("collapsible-transition");
@@ -4383,10 +4442,10 @@ function renderCategoryBudgets() {
         container.offsetHeight; // force reflow
         container.style.maxHeight = "0px";
         toggleBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-        localStorage.setItem("kaasi_collapseCategoryBudgets", "true");
+        appPreferences.setItem("kaasi_collapseCategoryBudgets", "true");
 
         const onTransitionEnd = () => {
-          if (localStorage.getItem("kaasi_collapseCategoryBudgets") === "true") {
+          if (appPreferences.getItem("kaasi_collapseCategoryBudgets") === "true") {
             if (header && !isTipVisible) {
               header.classList.remove("border-b", "border-gray-600", "pb-2", "mb-4");
               header.classList.add("mb-0");

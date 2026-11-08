@@ -1,0 +1,11 @@
+# Keep this repository limited to the public application release.
+.agents/
+.codex/
+docs/
+graphify-out/
+tests/
+tools/
+node_modules/
+kaasi-android/
+recovery_codes.md
+*.log
